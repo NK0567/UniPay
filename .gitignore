@@ -1,0 +1,28 @@
+# Node
+node_modules
+dist
+build
+
+# Env
+.env
+
+# Logs
+logs
+*.log
+
+# Prisma
+prisma/dev.db
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+build/
+
+# VSCode
+.vscode/
+
+# Mac
+.DS_Store
