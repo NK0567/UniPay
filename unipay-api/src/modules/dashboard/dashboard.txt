@@ -1,0 +1,10 @@
+# 📈 Dashboard analytics
+
+---
+
+## Fonctionnalités
+
+✅ revenus temps réel
+✅ transactions
+✅ fraude
+✅ croissance plateforme

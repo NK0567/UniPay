@@ -1,0 +1,10 @@
+# 👑 Super administration
+
+---
+
+## Fonctionnalités
+
+✅ gestion utilisateurs
+✅ gestion commissions
+✅ blocage comptes
+✅ supervision globale

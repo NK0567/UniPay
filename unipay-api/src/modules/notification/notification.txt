@@ -1,0 +1,11 @@
+# 🔔 Notifications
+
+---
+
+## Fonctionnalités
+
+✅ push
+✅ email
+✅ SMS
+✅ alertes fraude
+✅ transactions

@@ -1,0 +1,450 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIGURATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ÉNUMÉRATIONS
+// ═════════════════════════════════════════════════════════════════════════════
+
+enum StatutKYC {
+  NON_VERIFIE
+  EN_COURS
+  VERIFIE
+  REJETE
+}
+
+enum RoleUtilisateur {
+  USER
+  ADMIN
+  SUPPORT
+  MODERATEUR
+}
+
+enum StatutCompte {
+  ACTIF
+  SUSPENDU
+  FERME
+}
+
+enum TypeSession {
+  WEB
+  MOBILE
+  API
+}
+
+enum TypeTransaction {
+  DEPOT
+  RETRAIT
+  TRANSFERT
+  PAIEMENT
+}
+
+enum StatutTransaction {
+  EN_ATTENTE
+  SUCCES
+  ECHEC
+  ANNULEE
+  REMBOURSEE
+}
+
+enum MethodePaiement {
+  MOMO
+  ORANGE_MONEY
+  CARTE
+  VIREMENT
+  LIEN
+}
+
+enum TypeAgregateur {
+  MOBILE_MONEY
+  BANQUE
+  CARTE
+  INTERNE
+}
+
+enum StatutAgregateur {
+  ACTIF
+  SUSPENDU
+  TEST
+}
+
+enum StatutCarte {
+  ACTIVE
+  BLOQUEE
+  EXPIREE
+}
+
+enum StatutLien {
+  ACTIF      
+  DESACTIVE  
+  EXPIRE     
+  UTILISE    
+}
+
+enum TypeNotification {
+  TRANSACTION
+  SECURITE
+  EPARGNE
+  SYSTEME
+  LIEN
+  CHATBOT
+}
+
+enum CanalNotif {
+  APP
+  SMS
+  EMAIL
+  PUSH
+  WHATSAPP
+}
+
+enum StatutNotif {
+  LUE
+  NON_LUE
+}
+
+enum StatutObjectif {
+  EN_COURS
+  ATTEINT
+  ABANDONNE
+}
+
+enum TypeMouvement {
+  DEPOT
+  RETRAIT
+}
+
+enum TypeRapport {
+  MENSUEL
+  TRIMESTRIEL
+  ANNUEL
+}
+
+enum TypeSecurite {
+  CHIFFREMENT
+  AUTHENTIFICATION
+  ANTI_FRAUDE
+}
+
+enum NiveauxSecurite {
+  FAIBLE
+  MOYEN
+  ELEVE
+  CRITIQUE
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MODÈLES
+// ═════════════════════════════════════════════════════════════════════════════
+
+model Utilisateur {
+  id           String          @id @default(uuid())
+  nom          String          @db.VarChar(100)
+  prenom       String            // Enregistrement séparé propre
+  email        String          @unique @db.VarChar(150)
+  telephone    String          @unique @db.VarChar(20)
+  motDePasse   String          @db.VarChar(255)
+  statutKYC    StatutKYC       @default(NON_VERIFIE)
+  role         RoleUtilisateur @default(USER)
+  statutCompte StatutCompte    @default(ACTIF)
+  pays         String?         @db.Char(2)
+  langue       String          @default("fr") @db.VarChar(5)
+  dateCreation DateTime        @default(now())
+  dateModif    DateTime        @updatedAt
+  resetToken   String?
+  resetTokenExpires DateTime?
+
+  portefeuille    Portefeuille?
+  sessions         Session[]
+  blacklistTokens  BlacklistToken[]
+  notifications    Notification[]
+  liensPaiement    LienPaiement[]
+  objectifs        ObjectifEpargne[]
+  auditLogs        AuditLog[]
+  chatbotContext   ChatbotContext? 
+  rapportsGeneres Rapport[]       @relation("RapportGenerePar")
+  transfertsEnvoyes Transaction[]  @relation("TransfertExpediteur")
+  transfertsRecus   Transaction[]  @relation("TransfertDestinataire")
+
+  @@map("utilisateurs")
+}
+
+model Portefeuille {
+  id            String       @id @default(uuid())
+  utilisateurId String       @unique 
+  solde         Decimal      @default(0) @db.Decimal(18, 4)
+  soldeBloque   Decimal      @default(0) @db.Decimal(18, 4)
+  devise        String       // 👈 AJOUTE CETTE LIGNE (Ex: "XAF", "EUR", "USD")
+  statut        StatutCompte @default(ACTIF)
+  plafondJour   Decimal?     @db.Decimal(18, 4)
+  dateCreation  DateTime     @default(now())
+  dateModif     DateTime     @updatedAt
+
+  utilisateur      Utilisateur       @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  carteVirtuelle   CarteVirtuelle?
+  transactionsSrc  Transaction[]     @relation("WalletSource")
+  transactionsDst  Transaction[]     @relation("WalletDestination")
+  liensPaiement    LienPaiement[]
+  objectifs        ObjectifEpargne[]
+
+  @@map("portefeuilles")
+}
+
+model Transaction {
+  id                String            @id @default(uuid())
+  type              TypeTransaction
+  montant           Decimal           @db.Decimal(18, 4)
+  deviseSource      String            @db.Char(3)
+  deviseCible       String            @db.Char(3)
+  tauxApplique      Decimal?          @db.Decimal(18, 6)
+  montantConverti   Decimal?          @db.Decimal(18, 4)
+  statut            StatutTransaction @default(EN_ATTENTE)
+  methodePaiement  MethodePaiement?
+  description       String?           @db.Text
+  dateTransaction  DateTime          @default(now())
+  
+  // ─── 💰 COMPTABILITÉ DES GAINS SYSTÈME UNI-PAY (AJOUTS HISTORISATION) ───
+  frais             Decimal           @default(0) @db.Decimal(18, 4) // Frais fixes ou % internes
+  gainSpread        Decimal           @default(0) @db.Decimal(18, 4) // Bénéfice direct de la conversion
+  paysOperation     String            @default("CM") @db.Char(2)     // Pour filtrer les revenus par pays
+
+  walletSourceId   String
+  agregateurId     String
+  walletDestId     String?
+  tauxChangeId     String?
+  lienPaiementId   String?
+  expediteurId     String?
+  destinataireId   String?
+
+  marchand          String?          @db.VarChar(150)
+  referenceMarchand String?          @db.VarChar(100)
+  source            String?          @db.VarChar(255)
+  destination       String?          @db.VarChar(255)
+
+  walletSource      Portefeuille     @relation("WalletSource", fields: [walletSourceId], references: [id])
+  walletDest        Portefeuille?    @relation("WalletDestination", fields: [walletDestId], references: [id])
+  agregateur        Agregateur       @relation(fields: [agregateurId], references: [id])
+  tauxChange        TauxChange?      @relation(fields: [tauxChangeId], references: [id])
+  lienPaiement      LienPaiement?    @relation(fields: [lienPaiementId], references: [id])
+  expediteur        Utilisateur?     @relation("TransfertExpediteur", fields: [expediteurId], references: [id])
+  destinataire      Utilisateur?     @relation("TransfertDestinataire", fields: [destinataireId], references: [id])
+  notifications     Notification[]
+  mouvementsEpargne MouvementEpargne[]
+
+  @@map("transactions")
+}
+
+model Session {
+  id            String      @id @default(uuid())
+  utilisateurId String
+  token         String      @unique @db.VarChar(500) 
+  expiration    DateTime
+  type          TypeSession @default(WEB)
+  revoque       Boolean     @default(false)
+  dateCreation  DateTime    @default(now())
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  @@map("sessions")
+}
+
+model BlacklistToken {
+  id            String   @id @default(uuid())
+  token         String   @unique @db.VarChar(500)
+  utilisateurId String?  
+  dateExpiry    DateTime
+  dateAjout     DateTime @default(now())
+  
+  utilisateur   Utilisateur? @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
+  @@map("blacklist_tokens")
+}
+
+model Agregateur {
+  id              String           @id @default(uuid())
+  nom             String           @db.VarChar(100)
+  type            TypeAgregateur
+  pays            String           @db.Char(2)
+  commissionPct   Decimal          @default(0) @db.Decimal(5, 4)
+  statut          StatutAgregateur @default(ACTIF)
+  transactions    Transaction[]
+  configurations  ConfigAgregateur[]
+  @@map("agregateurs")
+}
+
+model ConfigAgregateur {
+  id           String   @id @default(uuid())
+  agregateurId String
+  cle          String   @db.VarChar(100)
+  valeur       String   @db.Text
+  agregateur   Agregateur @relation(fields: [agregateurId], references: [id], onDelete: Cascade)
+  @@map("config_agregateurs")
+}
+
+model TauxChange {
+  id            String    @id @default(uuid())
+  deviseSource  String    @db.Char(3)
+  deviseCible   String    @db.Char(3)
+  taux          Decimal   @db.Decimal(18, 8)
+  valide        Boolean   @default(true)
+  dateMiseAJour DateTime  @default(now())
+  transactions  Transaction[]
+  @@map("taux_change")
+}
+
+model CarteVirtuelle {
+  id             String      @id @default(uuid())
+  portefeuilleId String      @unique
+  numeroTokenise String      @unique @db.VarChar(20)
+  cvvHash        String      @db.VarChar(255)
+  statut         StatutCarte @default(ACTIVE)
+  dateExpiration DateTime
+  portefeuille   Portefeuille @relation(fields: [portefeuilleId], references: [id], onDelete: Cascade)
+  @@map("cartes_virtuelles")
+}
+
+model LienPaiement {
+  id              String       @id @default(uuid())
+  utilisateurId   String
+  portefeuilleId  String
+  code            String       @unique @db.VarChar(10) // Ton code de lien
+  token           String       @unique @db.VarChar(128) // Ton token unique du lien
+  signatureHmac   String       @db.VarChar(64)          // 💡 AJOUT : La signature de sécurité HMAC-SHA256 (64 caractères hex)
+  montant         Decimal?     @db.Decimal(18, 4)
+  statut          StatutLien   @default(ACTIF)
+  dateExpiration  DateTime?
+  dateCreation    DateTime     @default(now())
+  dateModif       DateTime     @updatedAt
+
+  utilisateur     Utilisateur  @relation(fields: [utilisateurId],  references: [id])
+  portefeuille    Portefeuille @relation(fields: [portefeuilleId], references: [id])
+  transactions    Transaction[]
+
+  @@map("liens_paiement")
+}
+
+model ConfigurationGenerale {
+  id          String   @id @default(uuid())
+  cle         String   @unique // Ex: "FRAIS_LIEN_PAIEMENT", "COMMISSION_RETRAIT"
+  valeur      String   // Stocké en String pour la flexibilité (ex: "0.015")
+  description String?  // Pour savoir à quoi ça sert dans ton admin dashboard
+  updatedAt   DateTime @updatedAt
+
+  @@map("configuration_generale")
+}
+
+// 💡 AJOUT : Le modèle du coffre-fort pour accumuler les gains en cas d'absence d'Admin
+model CoffreUniPay {
+  id            String   @id @default("global_vault")
+  cumulGainsXAF Decimal  @default(0.0000) @db.Decimal(18, 4)
+  updatedAt     DateTime @updatedAt
+
+  @@map("coffre_unipay")
+}
+
+model ObjectifEpargne {
+  id             String         @id @default(uuid())
+  utilisateurId  String
+  portefeuilleId String
+  libelle        String         @db.VarChar(150)
+  montantCible   Decimal        @db.Decimal(18, 4)
+  montantActuel  Decimal        @default(0) @db.Decimal(18, 4)
+  statut         StatutObjectif @default(EN_COURS)
+  utilisateur    Utilisateur        @relation(fields: [utilisateurId],  references: [id], onDelete: Cascade)
+  portefeuille   Portefeuille       @relation(fields: [portefeuilleId], references: [id])
+  mouvements     MouvementEpargne[]
+  @@map("objectifs_epargne")
+}
+
+model MouvementEpargne {
+  id            String        @id @default(uuid())
+  objectifId    String
+  transactionId String?
+  type          TypeMouvement
+  montant       Decimal       @db.Decimal(18, 4)
+  dateMouvement DateTime      @default(now())
+  objectif      ObjectifEpargne @relation(fields: [objectifId],    references: [id], onDelete: Cascade)
+  transaction   Transaction?    @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  @@map("mouvements_epargne")
+}
+
+model Notification {
+  id               String           @id @default(uuid())
+  utilisateurId    String
+  transactionId    String?
+  type             TypeNotification
+  message          String           @db.Text
+  statut           StatutNotif      @default(NON_LUE)
+  dateNotification DateTime         @default(now())
+  utilisateur      Utilisateur  @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  transaction      Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  @@map("notifications")
+}
+
+model Rapport {
+  id                String      @id @default(uuid())
+  type              TypeRapport
+  totalTransactions Int         @default(0)
+  totalRevenus      Decimal     @default(0) @db.Decimal(18, 4)
+  generePar         String
+  dateGeneration    DateTime    @default(now())
+  generateur        Utilisateur @relation("RapportGenerePar", fields: [generePar], references: [id])
+  @@map("rapports")
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  utilisateurId String?
+  action        String   @db.VarChar(100)
+  entite        String   @db.VarChar(50)
+  avant         Json?
+  apres         Json?
+  dateAction    DateTime @default(now())
+  utilisateur   Utilisateur? @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
+  @@map("audit_logs")
+}
+
+model Securite {
+  id     String       @id @default(uuid())
+  type   TypeSecurite
+  niveau NiveauxSecurite
+  statut Boolean      @default(true)
+  @@map("securite")
+}
+
+model ChatbotContext {
+  id             String   @id @default(uuid())
+  utilisateurId  String   @unique
+  dernierMessage String?  @db.Text
+  etapeEnCours   String? 
+  donneesTemporaires Json? 
+  dateModif      DateTime @updatedAt
+  utilisateur    Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  @@map("chatbot_context")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 🆕 ENRICHISSEMENT : CONFIGURATION DYNAMIQUE DU SYSTÈME (ZÉRO MODIF DE CODE)
+// ═════════════════════════════════════════════════════════════════════════════
+
+model ConfigurationSysteme {
+  id           String   @id @default(uuid())
+  cle          String   @unique @db.VarChar(100) // Ex: "FRAIS_TRANSFERT_INTERNE", "SPREAD_USD"
+  valeur       String   @db.Text                 // Valeur stockée en texte pour rester universelle
+  description  String?  @db.Text
+  type         String   @db.VarChar(50)          // Ex: "FINANCIER", "GLOBAL", "SECURITE"
+  dateModif    DateTime @updatedAt
+
+  @@map("configuration_systeme")
+}

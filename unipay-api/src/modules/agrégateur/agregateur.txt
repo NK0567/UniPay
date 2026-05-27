@@ -1,0 +1,17 @@
+# 🌍 Connexion MTN / Orange / banques
+
+---
+
+## Fonctionnalités
+
+✅ dépôt mobile money
+✅ retrait mobile money
+✅ partenaires paiement
+
+---
+👉 configurations des agrégateurs :
+
+* MTN
+* Orange
+* Stripe
+* Flutterwave

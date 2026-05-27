@@ -1,0 +1,36 @@
+# 🤖 Assistant intelligent intégré
+
+---
+
+# 🎯 IMPORTANT
+
+👉 Tu as choisi :
+✅ chatbot interne à UniPay uniquement
+
+PAS WhatsApp.
+
+---
+
+# 🔥 RÔLE DU BOT
+
+Le bot sert à :
+
+✅ guider utilisateur
+✅ expliquer fonctionnalités
+✅ retrouver opérations
+✅ aider retrait
+✅ aide rapide
+✅ onboarding utilisateur
+
+---
+
+# 🔥 Exemple réel
+
+Utilisateur écrit :
+
+> “je veux envoyer 5000”
+
+Le bot :
+
+* ouvre écran transfert
+* pré-remplit montant

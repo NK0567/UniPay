@@ -1,0 +1,11 @@
+# 🔐 Sécurité fintech
+
+---
+
+## Fonctionnalités
+
+✅ 2FA
+✅ anti fraude
+✅ analyse comportement
+✅ limitation requêtes
+✅ chiffrement

@@ -1,0 +1,13 @@
+## 🔐 Authentification
+
+---
+
+## Rôle
+
+👉 gérer :
+
+* inscription
+* connexion
+* JWT
+* refresh token
+* mot de passe oublié

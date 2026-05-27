@@ -1,0 +1,10 @@
+# 🌍 Paiements marchands
+
+---
+
+## Fonctionnalités
+
+✅ paiement en ligne
+✅ QR code
+✅ paiement marchand
+✅ checkout UniPay
