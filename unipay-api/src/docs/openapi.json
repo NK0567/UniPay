@@ -1,0 +1,24 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "UniPay API Gateway",
+    "description": "Documentation des endpoints du système international de paiement UniPay.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api/v1",
+      "description": "Serveur de développement local"
+    }
+  ],
+  "paths": {
+    "/taux-change/ticker-dashboard": {
+      "get": {
+        "summary": "Récupère le carrousel des conversions pour le placeholder Flutter",
+        "responses": {
+          "200": { "description": "Succès" }
+        }
+      }
+    }
+  }
+}

@@ -63,6 +63,26 @@ class AuthRepository {
       }
     });
   }
+
+  /**
+   * 🔍 Trouver un utilisateur par son ID pour vérifier l'état de son PIN
+   */
+  async trouverParId(id) {
+    return await prisma.utilisateur.findUnique({
+      where: { id },
+      include: { portefeuille: true } // Optionnel : si besoin de lier le portefeuille
+    });
+  }
+
+  /**
+   * 💾 Mettre à jour le code PIN hashé en base de données
+   */
+  async mettreAJourPin(utilisateurId, pinHashe) {
+    return await prisma.utilisateur.update({
+      where: { id: utilisateurId },
+      data: { codePIN: pinHashe }
+    });
+  }
 }
 
 module.exports = new AuthRepository();

@@ -58,6 +58,60 @@ exports.validerExecutionReset = (req, res, next) => {
   next();
 };
 
+/**
+ * 🛡️ Validateur pour la première configuration du PIN (4 chiffres obligatoires)
+ */
+exports.validerInitialiserPin = (req, res, next) => {
+  const schema = Joi.object({
+    utilisateurId: Joi.string().required(),
+    nouveauPin: Joi.string()
+      .pattern(/^\d{4}$/)
+      .required()
+      .messages({
+        'string.pattern.base': 'Le nouveau code PIN doit être composé de exactement 4 chiffres.'
+      })
+  });
+
+  const { error } = schema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ 
+      success: false, 
+      error: error.details[0].message 
+    });
+  }
+  next();
+};
+
+/**
+ * 🛡️ Validateur pour la modification du PIN existant (Ancien et nouveau requis, 4 chiffres)
+ */
+exports.validerChangerPin = (req, res, next) => {
+  const schema = Joi.object({
+    utilisateurId: Joi.string().required(),
+    ancienPin: Joi.string()
+      .pattern(/^\d{4}$/)
+      .required()
+      .messages({
+        'string.pattern.base': "L'ancien code PIN doit être composé de exactement 4 chiffres."
+      }),
+    nouveauPin: Joi.string()
+      .pattern(/^\d{4}$/)
+      .required()
+      .messages({
+        'string.pattern.base': 'Le nouveau code PIN doit être composé de exactement 4 chiffres.'
+      })
+  });
+
+  const { error } = schema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ 
+      success: false, 
+      error: error.details[0].message 
+    });
+  }
+  next();
+};
+
 
 
 

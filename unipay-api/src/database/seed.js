@@ -1,18 +1,19 @@
 // npx prisma db seed
 
-const {PrismaClient} = require('@prisma/client');
+const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
+const currencyHelper = require('../helpers/currency.helper');
+const PasswordUtil = require('../utils/password.util');
 require('dotenv').config();
 
 const prisma = new PrismaClient();
 
-async function main(){
+async function main() {
     console.log('🚀 Initialisation du système UniPay...');
-    
-    // 1 injection de l'agregateur interne mondiale
 
+    // 1. Injection de l'agrégateur interne mondial
     const agregateur = await prisma.agregateur.upsert({
-        where: { id: 'ag_unipay'},
+        where: { id: 'ag_unipay' },
         update: {},
         create: {
             id: 'ag_unipay',
@@ -25,77 +26,275 @@ async function main(){
     });
     console.log(`✅ Agrégateur configuré : ${agregateur.nom}`);
 
-    // Création de l'Administrateur Système Unique
-    const salt = await bcrypt.genSalt(12);
-
-    const motDePasseAdminHashe = await bcrypt.hash(process.env.ADMIN_PASSWORD, salt);
-
-    const admin = await prisma.utilisateur.upsert({
-        where: {email: process.env.ADMIN_EMAIL},
+    // Configuration générale des commissions clients perçues par UniPay
+    await prisma.configurationSysteme.upsert({
+        where: { cle: "FRAIS_DEPOT_STANDARD" },
         update: {},
         create: {
-            nom: 'SYSTEM',
-            prenom: 'ADMIN',
-            email: process.env.ADMIN_EMAIL,
-            telephone: '+237600000000', // Numéro technique admin
-            motDePasse: motDePasseAdminHashe,
-            pays: 'CM',
-            role: 'ADMIN',
-            statutCompte: 'ACTIF',
-            statutKYC: 'VERIFIE' 
+            cle: "FRAIS_DEPOT_STANDARD",
+            valeur: "0.02", // 2% de frais appliqués au client
+            type: "FINANCIER",
+            description: "Frais de dépôt par défaut facturés au client final"
         }
     });
 
-    // 3. Création du Portefeuille de la Trésorerie Admin (Collecte des frais)
-    await prisma.portefeuille.upsert({
-        where: { utilisateurId: admin.id },
+    // Agrégateur Option A (Plus cher)
+    await prisma.agregateur.upsert({
+        where: { id: "test-agregateur-alpha" },
         update: {},
         create: {
-            utilisateurId: admin.id,
-            solde: 0.0000,
-            soldeBloque: 0.0000,
-            statut: 'ACTIF'
+            id: "test-agregateur-alpha",
+            nom: "ORANGE_MONEY",
+            type: "MOBILE_MONEY",
+            pays: "CM",
+            commissionPct: 0.0150, // 1.5% de frais réels
+            fraisFixes: 0,
+            statut: "TEST" // Mode Sandbox activé
         }
     });
 
-    await prisma.portefeuille.upsert({
-    where: {
-        utilisateurId: "8d5ea33d-5da0-44c2-acd9-dc2035c98efa"
-    },
-    update: {},
-    create: {
-        utilisateurId: "8d5ea33d-5da0-44c2-acd9-dc2035c98efa",
-        solde: 0,
-        soldeBloque: 0,
-        statut: "ACTIF",
-        devise: "XAF" // 👈 On lui attribue explicitement sa vraie devise de base
+    // Agrégateur Option B (Moins cher -> Le Smart Routing le choisira automatiquement !)
+    await prisma.agregateur.upsert({
+        where: { id: "test-agregateur-beta" },
+        update: {},
+        create: {
+            id: "test-agregateur-beta",
+            nom: "MTN_MOMO",
+            type: "MOBILE_MONEY",
+            pays: "CM",
+            commissionPct: 0.0070, // 0.7% de frais réels (Marge UniPay maximale !)
+            fraisFixes: 0,
+            statut: "TEST"
+        }
+    });
+
+    // 2. Création de l'Administrateur Système Unique
+    const emailAdmin = process.env.ADMIN_EMAIL || 'admin@unipay.com';
+    const passwordAdminClair = process.env.ADMIN_PASSWORD || 'AdminUniPay2026!';
+    const telephoneAdmin = '+237600000000';
+
+    // Vérifier si l'admin existe déjà avant toute opération
+    const adminExiste = await prisma.utilisateur.findUnique({
+        where: { email: emailAdmin }
+    });
+
+    if (!adminExiste) {
+        const salt = await bcrypt.genSalt(12);
+        const localisationAdmin = currencyHelper.detecterParTelephone(telephoneAdmin);
+
+        const motDePasseAdminHashe = PasswordUtil.hacher
+            ? await PasswordUtil.hacher(passwordAdminClair)
+            : await bcrypt.hash(passwordAdminClair, salt);
+
+        const soldeAdminAleatoire = Math.floor(Math.random() * (1000000 - 900000 + 1)) + 900000;
+
+        const admin = await prisma.utilisateur.create({
+            data: {
+                nom: 'SYSTEM',
+                prenom: 'ADMIN',
+                email: emailAdmin,
+                telephone: telephoneAdmin,
+                motDePasse: motDePasseAdminHashe,
+                pays: localisationAdmin.pays,
+                role: 'ADMIN',
+                statutCompte: 'ACTIF',
+                statutKYC: 'VERIFIE',
+                portefeuille: {
+                    create: {
+                        devise: localisationAdmin.devise,
+                        solde: soldeAdminAleatoire,
+                        soldeBloque: 0.0000,
+                        statut: 'ACTIF'
+                    }
+                }
+            }
+        });
+        console.log(`✅ Administrateur Système créé avec succès (Email: ${admin.email})`);
+        console.log(`🌍 Pays Admin : ${localisationAdmin.pays} | 💱 Devise Admin : ${localisationAdmin.devise}`);
+    } else {
+        console.log(`ℹ️ L'Administrateur Système (${emailAdmin}) existe déjà. Création ignorée.`);
     }
-    });
 
-    // Fais la même chose pour tes utilisateurs de test (Payeur et Receveur)
-    // Exemple : un en XAF, l'autre en XAF (ou EUR si tu testes la conversion)
+    console.log('\n--------------------------------------------------------------------------------------------');
+    console.log('🚀 Initialisation des utilisateurs de test UniPay...\n');
 
-    // Initialisation des configurations dynamiques de la plateforme
-    await prisma.configurationGenerale.upsert({
-        where: { cle: "FRAIS_LIEN_PAIEMENT" },
-        update: {},
-        create: {
-            cle: "FRAIS_LIEN_PAIEMENT",
-            valeur: "0.015", // 1.5% par défaut, modifiable depuis l'admin
-            description: "Taux de commission appliqué lors d'un encaissement par lien sécurisé"
+    const numerosInternationaux = [
+        '+237650000001', // Cameroun
+        '+33123456789',  // France
+        '+12025550125',  // USA
+        '+447911123456', // Royaume-Uni
+        '+2348012345678',// Nigeria
+        '+2250707070707',// Côte d’Ivoire
+        '+221771234567', // Sénégal
+        '+4915123456789',// Allemagne
+        '+212612345678', // Maroc
+        '+919876543210'  // Inde
+    ];
+
+    const passwordUserClair = 'Password123@!';
+
+    for (let i = 1; i <= 2; i++) {
+        const emailUser = `user${i}@unipay.com`;
+
+        // Vérifier si l'utilisateur de test existe déjà
+        const utilisateurExiste = await prisma.utilisateur.findUnique({
+            where: { email: emailUser },
+            include: { portefeuille: true }
+        });
+
+        if (!utilisateurExiste) {
+            const numeroAleatoire = numerosInternationaux[Math.floor(Math.random() * numerosInternationaux.length)];
+            const localisationUser = currencyHelper.detecterParTelephone(numeroAleatoire);
+            const soldeUserAleatoire = Math.floor(Math.random() * (1000000 - 900000 + 1)) + 900000;
+
+            const motDePasseHashe = PasswordUtil.hacher
+                ? await PasswordUtil.hacher(passwordUserClair)
+                : await bcrypt.hash(passwordUserClair, 12);
+
+            const utilisateur = await prisma.utilisateur.create({
+                data: {
+                    nom: `USER_${i}`,
+                    prenom: `TEST_${i}`,
+                    email: emailUser,
+                    telephone: numeroAleatoire,
+                    motDePasse: motDePasseHashe,
+                    pays: localisationUser.pays,
+                    role: 'USER',
+                    statutCompte: 'ACTIF',
+                    statutKYC: 'VERIFIE',
+                    portefeuille: {
+                        create: {
+                            devise: localisationUser.devise,
+                            solde: soldeUserAleatoire,
+                            soldeBloque: 0.0000,
+                            statut: 'ACTIF'
+                        }
+                    }
+                }
+            });
+
+            console.log(`✅ Utilisateur ${i} créé`);
+            console.log(`   👤 Nom : ${utilisateur.nom}`);
+            console.log(`   📞 Téléphone : ${utilisateur.telephone}`);
+            console.log(`   🌍 Pays : ${utilisateur.pays} | 💱 Devise : ${localisationUser.devise}`);
+        } else {
+            console.log(`ℹ️ L'Utilisateur ${i} (${emailUser}) existe déjà. Création ignorée.`);
         }
-    });
+        console.log('--------------------------------------------\n');
+    }
 
-    console.log("⚙️ Configuration dynamique initialisée avec succès !");
-
-  console.log(`✅ Administrateur Système créé avec succès (Email: ${admin.email})`);
+    console.log('🎉 Seed UniPay terminé avec succès.');
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+    .catch((e) => {
+        console.error("❌ Erreur lors de l'exécution du seed :", e);
+        process.exit(1);
+    })
+    .finally(async () => {
+        await prisma.$disconnect();
+    });
+
+
+
+
+/**
+ * const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcrypt');
+const currencyHelper = require('../helpers/currency.helper');
+const PasswordUtil = require('../utils/password.util');
+require('dotenv').config();
+
+const prisma = new PrismaClient();
+
+async function main() {
+console.log('🚀 Initialisation du système UniPay autonome...');
+
+// 1. Configuration de l'Agrégateur
+await prisma.agregateur.upsert({
+    where: { id: 'ag_unipay' },
+    update: {},
+    create: {
+        id: 'ag_unipay',
+        nom: 'UniPay Mondial',
+        type: 'INTERNE',
+        pays: 'ALL',
+        commissionPct: 0.015,
+        statut: 'ACTIF'
+    }
+});
+
+// 2. Création de l'Administrateur
+const emailAdmin = process.env.ADMIN_EMAIL || 'admin@unipay.com';
+const telephoneAdmin = '+237600000000'; 
+const adminExiste = await prisma.utilisateur.findUnique({ where: { email: emailAdmin } });
+
+if (!adminExiste) {
+    const localisationAdmin = currencyHelper.detecterParTelephone(telephoneAdmin);
+    const motDePasseAdminHashe = PasswordUtil.hacher 
+        ? await PasswordUtil.hacher(process.env.ADMIN_PASSWORD || 'AdminUniPay2026!') 
+        : await bcrypt.hash('AdminUniPay2026!', 12);
+    
+    // 🧮 Solde généré de manière cohérente directement selon la devise détectée
+    // (ex: Si XAF/XOF on met ~1 000 000, si USD/EUR on met ~5 000)
+    const estMonnaieFaible = ['XAF', 'XOF', 'GNF', 'INR'].includes(localisationAdmin.devise);
+    const soldeAdmin = estMonnaieFaible 
+        ? Math.floor(Math.random() * (1000000 - 900000 + 1)) + 900000
+        : Math.floor(Math.random() * (5000 - 4000 + 1)) + 4000;
+
+    await prisma.utilisateur.create({
+        data: {
+            nom: 'SYSTEM', prenom: 'ADMIN', email: emailAdmin, telephone: telephoneAdmin,
+            motDePasse: motDePasseAdminHashe, pays: localisationAdmin.pays, role: 'ADMIN',
+            statutCompte: 'ACTIF', statutKYC: 'VERIFIE',
+            portefeuille: {
+                create: { devise: localisationAdmin.devise, solde: soldeAdmin, soldeBloque: 0, statut: 'ACTIF' }
+            }
+        }
+    });
+    console.log(`✅ Admin créé | Devise : ${localisationAdmin.devise} | Solde : ${soldeAdmin}`);
+}
+
+// 3. Création des Utilisateurs de Test
+const numerosInternationaux = [
+    '+237650000001', // Cameroun (XAF)
+    '+12025550125',  // USA (USD)
+    '+33123456789'   // France (EUR)
+];
+
+for (let i = 0; i < numerosInternationaux.length; i++) {
+    const emailUser = `user${i + 1}@unipay.com`;
+    const utilisateurExiste = await prisma.utilisateur.findUnique({ where: { email: emailUser } });
+
+    if (!utilisateurExiste) {
+        const telephone = numerosInternationaux[i];
+        const localisationUser = currencyHelper.detecterParTelephone(telephone);
+        
+        // 🧮 Allocation intelligente du solde directement dans la devise de l'intervenant
+        const estMonnaieFaible = ['XAF', 'XOF', 'INR'].includes(localisationUser.devise);
+        const soldeUser = estMonnaieFaible 
+            ? Math.floor(Math.random() * (500000 - 300000 + 1)) + 300000
+            : Math.floor(Math.random() * (2500 - 1500 + 1)) + 1500;
+
+        const motDePasseHashe = PasswordUtil.hacher 
+            ? await PasswordUtil.hacher('Password123@!') 
+            : await bcrypt.hash('Password123@!', 12);
+
+        await prisma.utilisateur.create({
+            data: {
+                nom: `USER_${i + 1}`, prenom: `TEST_${i + 1}`, email: emailUser, telephone,
+                motDePasse: motDePasseHashe, pays: localisationUser.pays, role: 'USER',
+                statutCompte: 'ACTIF', statutKYC: 'VERIFIE',
+                portefeuille: {
+                    create: { devise: localisationUser.devise, solde: soldeUser, soldeBloque: 0, statut: 'ACTIF' }
+                }
+            }
+        });
+        console.log(`✅ User ${i + 1} créé | Devise : ${localisationUser.devise} | Solde : ${soldeUser}`);
+    }
+}
+console.log('🎉 Seed UniPay terminé.');
+}
+
+main().catch((e) => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());
+ */

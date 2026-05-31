@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `agregateurs` ADD COLUMN `fraisFixes` DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    ADD COLUMN `operationType` ENUM('DEPOT', 'RETRAIT', 'LES_DEUX') NOT NULL DEFAULT 'LES_DEUX';

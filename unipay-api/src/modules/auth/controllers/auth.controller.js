@@ -64,6 +64,39 @@ class AuthController {
       });
     }
   }
+
+  async initialiserPin(req, res) {
+    try {
+      const { utilisateurId, nouveauPin } = req.body;
+      
+      if (!utilisateurId || !nouveauPin) {
+        return res.status(400).json({ success: false, error: "Champs manquants." });
+      }
+
+      const resultat = await utilisateurService.configurerPremierPIN(utilisateurId, nouveauPin);
+      return res.status(200).json({ success: true, data: resultat });
+    } catch (error) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  /**
+   * Route pour modifier le PIN
+   */
+  async changerPin(req, res) {
+    try {
+      const { utilisateurId, ancienPin, nouveauPin } = req.body;
+
+      if (!utilisateurId || !ancienPin || !nouveauPin) {
+        return res.status(400).json({ success: false, error: "Tous les champs sont requis." });
+      }
+
+      const resultat = await utilisateurService.modifierPINExistant(utilisateurId, ancienPin, nouveauPin);
+      return res.status(200).json({ success: true, data: resultat });
+    } catch (error) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
 }
 
 module.exports = new AuthController();

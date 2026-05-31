@@ -1,13 +1,11 @@
 // on importe les modules nécessaires pour créer l'application Express
 const express = require('express') // framework pour notre serveur 
-const cors = require('cors')  // pour autoriser les futurs frontent (REACT/FLUTTER) à parler avec notre api 
+const cors = require('cors')  // pour autoriser les futurs frontent (REACT/FLUTTER) à parler avec notre api
+const { limiteurGenerique } = require('./config/ratLimiter');
+const configurerSwagger = require('./config/swagger');
+const globalRouter = require('./routes'); 
 
-const authRoutes = require('./modules/auth/routes/auth.routes')//on importe les routes d'authentifications
-const walletRoutes = require('./modules/portefeuille/routes/wallet.routes')
-const transactionRoutes = require('./modules/transaction/routes/transaction.routes')
-const lienRoutes = require('./modules/lienPaiement/routes/lien.routes')
-const chatbotRoutes = require('./modules/chatbot/routes/chatbot.routes')
-const adminRoutes = require('./modules/admin/routes/admin.routes')
+const globalRouter = require('./routes'); // Appelle automatiquement le dossier src/routes/index.js
 
 const errorMiddleware = require('./middlewares/error.middleware') // middleware pour gérer les erreurs
 const helmet = require('helmet') // helmet est un middleware de sécurité pour Express qui aide à protéger votre application contre certaines vulnérabilités web en définissant divers en-têtes HTTP.
@@ -24,30 +22,18 @@ app.use(cors()) //Activer le CORS (sécurité pour les requêtes de domaines dif
 app.use(helmet())
 app.use(morgan('dev'))
 
+// 2. Limitation du débit globale contre le spamming de l'API
+app.use(limiteurGenerique);
+
 // permet express de lire le format JSON envoyé par le client posstman/Mobile/react
 app.use(express.json())
 app.use(express.urlencoded({extended: false}))
 
-// --- ROUTES ---
+// 4. Initialisation de la documentation d'API interactive (/api-docs)
+configurerSwagger(app);
 
-// on monte le module Auth pour toutes les routes de auth.routes.js commencerons par /api/auth
-app.use('/api/auth', authRoutes);
-
-// on monte le module wallet pour toutes les routes de wallet.routes.js commencerons par /api/wallet
-app.use('/api/wallet', walletRoutes)
-
-// Branchement de la route globale des TRANSACTIONS, ils commenceront par /api/transaction
-app.use('/api/transaction', transactionRoutes)
-
-//Branchement des routes de lien de PAIEMENT, ils commenceront par /api/lien-paiement
-app.use('/api/lien-paiement', lienRoutes)
-
-// Branchement de la route du CHABOT, il commence par /api/chatbot
-app.use('/api/chatbot', chatbotRoutes)
-
-// branchement de la route ADMIN, il commence par /api/admin
-app.use('/api/admin', adminRoutes)
-
+// 🔀 Point d'ancrage unique de l'API
+app.use('/api/unipay', globalRouter);
 
 // route de test pour verifer que le serveur fonctionne correctement
 app.get('/', (req, res)=>{

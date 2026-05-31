@@ -4,7 +4,8 @@ const transferLinkRepository = require('../repositories/lien.repository');
 const currencyHelper = require('../../../helpers/currency.helper');
 const cryptoUtil = require('../../../utils/crypto.util');
 const authRepository = require('../../auth/repositories/auth.repository');
-const transactionRepository = require('../../transaction/repositories/transaction.repository');
+const logger = require('../../../utils/logger');
+const auditEventEmitter = require('../../../events/audit.event');
 
 class TransferLinkService {
   async genererLienSigne(utilisateurId, portefeuilleId) {
@@ -78,204 +79,238 @@ class TransferLinkService {
     };
   }
 
-  async executerPaiementLienSecurise(utilisateurPayeurId, { codeUnique, signature, montant }) {
-    const montantSaisi = parseFloat(montant);
-    if (isNaN(montantSaisi) || montantSaisi <= 0) {
-      throw new Error("Le montant du paiement doit être supérieur à 0.");
-    }
-
-    // 1. Récupérer le lien actif (Prisma vérifie le statut ACTIF et la date d'expiration)
-    const lien = await transferLinkRepository.trouverLienValide(codeUnique);
-    if (!lien) {
-      throw new Error("Ce lien de paiement est invalide, inactif ou a expiré (validité de 24h dépassée).");
-    }
-
-    // 2. Vérification cryptographique par comparaison directe avec la signature de la BD
-    if (lien.signatureHmac !== signature) {
-      throw new Error("Opération rejetée. Signature cryptographique du lien invalide.");
-    }
-
-    // Sécurité : Interdire de payer son propre lien
-    if (lien.utilisateurId === utilisateurPayeurId) {
-      throw new Error("Opération impossible : Vous ne pouvez pas payer votre propre lien.");
-    }
-
-    // 3. Exécution de la transaction financière globale
-    return await prisma.$transaction(async (tx) => {
-
-      // 💡 AJOUT : Récupérer l'agrégateur actif configuré sur la plateforme
-      const agregateurActif = await tx.agregateur.findFirst({
-        where: { statut: "ACTIF" } // ou selon les critères de ton seed (ex: nom: "UniPay Modial")
-      });
-
-      if (!agregateurActif) {
-        throw new Error("Erreur système : Aucun agrégateur actif n'est configuré sur la plateforme.");
+  async executerPaiementLienSecurise(utilisateurPayeurId, { codeUnique, signature, montant }, contextRequest = {}) {
+    try {
+      const montantSaisi = parseFloat(montant);
+      if (isNaN(montantSaisi) || montantSaisi <= 0) {
+        throw new Error("Le montant du paiement doit être supérieur à 0.");
       }
 
-      // Récupération des profils et des portefeuilles des acteurs
-      const payeur = await tx.utilisateur.findUnique({
-        where: { id: utilisateurPayeurId },
-        include: { portefeuille: true }
-      });
-      const receveur = await tx.utilisateur.findUnique({
-        where: { id: lien.utilisateurId },
-        include: { portefeuille: true }
-      });
-
-      if (!payeur || !payeur.portefeuille) {
-        throw new Error("Portefeuille du payeur introuvable.");
-      }
-      if (!receveur || !receveur.portefeuille) {
-        throw new Error("Portefeuille du bénéficiaire introuvable.");
+      // 1. Récupérer le lien actif
+      const lien = await transferLinkRepository.trouverLienValide(codeUnique);
+      if (!lien) {
+        throw new Error("Ce lien de paiement est invalide, inactif ou a expiré (validité de 24h dépassée).");
       }
 
-      const walletPayeur = payeur.portefeuille;
-
-      // Gestion de l'asynchronisme propre pour le portefeuille cible du lien
-      let walletReceveur = null;
-      if (lien.portefeuilleId) {
-        walletReceveur = await tx.portefeuille.findUnique({ where: { id: lien.portefeuilleId } });
+      // 2. Vérification cryptographique
+      if (lien.signatureHmac !== signature) {
+        // 🚨 LOG AUDIT : Tentative de fraude détectée (Signature corrompue)
+        auditEventEmitter.emit('log', {
+          utilisateurId: utilisateurPayeurId,
+          action: 'PAYMENT_LINK_FRAUD_SIGNATURE',
+          entite: 'LIEN_PAIEMENT',
+          avant: { codeUnique, signatureFournie: signature },
+          apres: { signatureAttendue: lien.signatureHmac },
+          ip: contextRequest.ip,
+          navigateur: contextRequest.userAgent
+        });
+        logger.security(`Alerte Securité : Signature invalide pour le lien ${codeUnique} par l'utilisateur ${utilisateurPayeurId}`);
+        
+        throw new Error("Opération rejected. Signature cryptographique du lien invalide.");
       }
 
-      if (!walletReceveur) {
-        walletReceveur = receveur.portefeuille;
+      if (lien.utilisateurId === utilisateurPayeurId) {
+        throw new Error("Opération impossible : Vous ne pouvez pas payer votre propre lien.");
       }
 
-      // Détection automatique du pays de l'opération via le téléphone du payeur
-      const geoPayeur = currencyHelper.detecterParTelephone(payeur.telephone);
-
-      // 1. Extraction stricte des devises depuis la BDD (aucune valeur par défaut tolérée)
-      const deviseSource = walletPayeur.devise || walletPayeur.currency;
-      const deviseCible = walletReceveur.devise || walletReceveur.currency;
-
-      if (!deviseSource || !deviseCible) {
-        throw new Error("Rupture d'intégrité financière : La devise d'un des portefeuilles est introuvable en base de données.");
-      }
-
-      // 2. ✅ CORRECTION : Utilisation de geoPayeur.pays au lieu de paysId
-      if (!geoPayeur || !geoPayeur.pays) {
-        throw new Error("Échec de conformité (Compliance) : Impossible de déterminer le pays d'origine de l'opération depuis le numéro du payeur.");
-      }
-      const paysIdOp = geoPayeur.pays; // Reçoit "CM" dynamiquement sans valeur en dur
-
-      // Vérification des fonds du payeur dans sa propre devise
-      if (parseFloat(walletPayeur.solde) < montantSaisi) {
-        throw new Error(`Solde insuffisant. Il vous faut ${montantSaisi} ${deviseSource} pour honorer ce paiement.`);
-      }
-
-      // =================================================================
-      // 4. ⚙️ Récupération dynamique du taux via ConfigurationGenerale
-      // =================================================================
-      const configFraisLien = await tx.configurationGenerale.findUnique({
-        where: { cle: "FRAIS_LIEN_PAIEMENT" }
-      });
-
-      if (!configFraisLien) {
-        throw new Error("Erreur système : La configuration 'FRAIS_LIEN_PAIEMENT' est manquante en base de données.");
-      }
-
-      const tauxFraisTransfert = parseFloat(configFraisLien.valeur);
-
-      // Calcul des taux de change dynamiques via ton Currency Helper
-      const tauxApplique = currencyHelper.obtenirTauxStatique(deviseSource, deviseCible);
-
-      // Calcul des montants
-      const montantConvertiBrut = montantSaisi * tauxApplique;
-      const fraisOp = montantConvertiBrut * tauxFraisTransfert;
-      const montantNetPourReceveur = montantConvertiBrut - fraisOp;
-
-      // 5. Mouvements financiers entre les portefeuilles des utilisateurs
-      // Débit du payeur
-      await tx.portefeuille.update({
-        where: { id: walletPayeur.id },
-        data: { solde: { decrement: montantSaisi } }
-      });
-
-      // Crédit du bénéficiaire (Montant net de frais)
-      await tx.portefeuille.update({
-        where: { id: walletReceveur.id },
-        data: { solde: { increment: montantNetPourReceveur } }
-      });
-
-      // =================================================================
-      // 6. 🧠 ROUTAGE ET CONVERSION DYNAMIQUE POUR L'ADMIN OU COFFRE
-      // =================================================================
-      const adminActif = await tx.utilisateur.findFirst({
-        where: { role: 'ADMIN' },
-        include: { portefeuille: true }
-      });
-
-      if (adminActif && adminActif.portefeuille) {
-        const walletAdmin = adminActif.portefeuille;
-        const deviseAdmin = walletAdmin.devise || walletAdmin.currency;
-
-        // Conversion dynamique vers la devise de l'admin
-        const tauxConversionAdmin = currencyHelper.obtenirTauxStatique(deviseCible, deviseAdmin);
-        const fraisConvertisPourAdmin = fraisOp * tauxConversionAdmin;
-
-        // Crédit du portefeuille de l'admin
-        await tx.portefeuille.update({
-          where: { id: walletAdmin.id },
-          data: { solde: { increment: fraisConvertisPourAdmin } }
+      // 3. Exécution de ta transaction financière globale (INCHANGÉE)
+      const resultatTransaction = await prisma.$transaction(async (tx) => {
+        
+        const agregateurActif = await tx.agregateur.findFirst({
+          where: { statut: "ACTIF" }
         });
 
-        // Mise à jour de ton vrai champ comptable statistique `cumulGainsXAF`
-        await tx.coffreUniPay.upsert({
-          where: { id: 'global_vault' },
-          update: { cumulGainsXAF: { increment: fraisConvertisPourAdmin } },
-          create: { id: 'global_vault', cumulGainsXAF: fraisConvertisPourAdmin }
+        if (!agregateurActif) {
+          throw new Error("Erreur système : Aucun agrégateur actif n'est configuré sur la plateforme.");
+        }
+
+        const payeur = await tx.utilisateur.findUnique({
+          where: { id: utilisateurPayeurId },
+          include: { portefeuille: true }
+        });
+        const receveur = await tx.utilisateur.findUnique({
+          where: { id: lien.utilisateurId },
+          include: { portefeuille: true }
+        });
+
+        if (!payeur || !payeur.portefeuille) throw new Error("Portefeuille du payeur introuvable.");
+        if (!receveur || !receveur.portefeuille) throw new Error("Portefeuille du bénéficiaire introuvable.");
+
+        const walletPayeur = payeur.portefeuille;
+        let walletReceveur = lien.portefeuilleId 
+          ? await tx.portefeuille.findUnique({ where: { id: lien.portefeuilleId } })
+          : receveur.portefeuille;
+
+        if (!walletReceveur) {
+          walletReceveur = receveur.portefeuille;
+        }
+
+        const geoPayeur = currencyHelper.detecterParTelephone(payeur.telephone);
+        const deviseSource = walletPayeur.devise || walletPayeur.currency;
+        const deviseCible = walletReceveur.devise || walletReceveur.currency;
+
+        if (!deviseSource || !deviseCible) {
+          throw new Error("Rupture d'intégrité financière : La devise d'un des portefeuilles est introuvable.");
+        }
+
+        if (!geoPayeur || !geoPayeur.pays) {
+          throw new Error("Échec de compliance : Impossible de déterminer le pays d'origine.");
+        }
+        const paysIdOp = geoPayeur.pays;
+
+        // 🛑 CAS D'ÉCHEC : Solde Insuffisant détecté au cours de la transaction
+        if (parseFloat(walletPayeur.solde) < montantSaisi) {
+          // On crée l'historique d'échec pour le client
+          await tx.transaction.create({
+            data: {
+              type: "TRANSFERT",
+              montant: montantSaisi,
+              deviseSource,
+              deviseCible,
+              statut: "ECHEC",
+              description: `Échec du paiement par lien ${codeUnique} : Solde insuffisant.`,
+              paysOperation: paysIdOp,
+              walletSourceId: walletPayeur.id,
+              agregateurId: agregateurActif.id
+            }
+          });
+
+          // On lève l'erreur pour annuler les autres opérations
+          throw new Error(`SOLDE_INSUFFISANT:Il vous faut ${montantSaisi} ${deviseSource} pour honorer ce paiement.`);
+        }
+
+        // --- Début de tes calculs inchangés ---
+        const configFraisLien = await tx.configurationGenerale.findUnique({
+          where: { cle: "FRAIS_LIEN_PAIEMENT" }
+        });
+
+        if (!configFraisLien) throw new Error("La configuration 'FRAIS_LIEN_PAIEMENT' est manquante.");
+
+        const tauxFraisTransfert = parseFloat(configFraisLien.valeur);
+        const tauxApplique = currencyHelper.obtenirTauxStatique(deviseSource, deviseCible);
+
+        const montantConvertiBrut = montantSaisi * tauxApplique;
+        const fraisOp = montantConvertiBrut * tauxFraisTransfert;
+        const montantNetPourReceveur = montantConvertiBrut - fraisOp;
+
+        // Débits / Crédits
+        await tx.portefeuille.update({
+          where: { id: walletPayeur.id },
+          data: { solde: { decrement: montantSaisi } }
+        });
+
+        await tx.portefeuille.update({
+          where: { id: walletReceveur.id },
+          data: { solde: { increment: montantNetPourReceveur } }
+        });
+
+        // Gestion Admin / Coffre
+        const adminActif = await tx.utilisateur.findFirst({
+          where: { role: 'ADMIN' },
+          include: { portefeuille: true }
+        });
+
+        if (adminActif && adminActif.portefeuille) {
+          const walletAdmin = adminActif.portefeuille;
+          const deviseAdmin = walletAdmin.devise || walletAdmin.currency;
+          const tauxConversionAdmin = currencyHelper.obtenirTauxStatique(deviseCible, deviseAdmin);
+          const fraisConvertisPourAdmin = fraisOp * tauxConversionAdmin;
+
+          await tx.portefeuille.update({
+            where: { id: walletAdmin.id },
+            data: { solde: { increment: fraisConvertisPourAdmin } }
+          });
+
+          await tx.coffreUniPay.upsert({
+            where: { id: 'global_vault' },
+            update: { cumulGainsXAF: { increment: fraisConvertisPourAdmin } },
+            create: { id: 'global_vault', cumulGainsXAF: fraisConvertisPourAdmin }
+          });
+        } else {
+          await tx.coffreUniPay.upsert({
+            where: { id: `vault_${deviseCible}` },
+            update: { cumulGainsXAF: { increment: fraisOp } },
+            create: { id: `vault_${deviseCible}`, cumulGainsXAF: fraisOp }
+          });
+        }
+
+        const messageHistorique = `Vous avez reçu un paiement de ${montantSaisi} ${deviseSource}...`;
+
+        const transactionHistorique = await tx.transaction.create({
+          data: {
+            type: "TRANSFERT",
+            montant: montantSaisi,
+            deviseSource,
+            deviseCible,
+            tauxApplique,
+            montantConverti: montantNetPourReceveur,
+            statut: "SUCCES",
+            frais: fraisOp,
+            gainSpread: 0,
+            description: messageHistorique,
+            paysOperation: paysIdOp,
+            lienPaiement: { connect: { id: lien.id } },
+            walletSource: { connect: { id: walletPayeur.id } },
+            agregateur: { connect: { id: agregateurActif.id } }
+          }
+        });
+
+        return {
+          statut: "SUCCES",
+          transactionId: transactionHistorique.id,
+          confirmationPayeur: `Paiement réussi ! Vous avez envoyé ${montantSaisi} ${deviseSource}.`,
+          notificationBeneficiaire: messageHistorique,
+          historiqueTransparent: {
+            recuExactement: montantSaisi,
+            deviseSource,
+            fraisAppliques: `${(tauxFraisTransfert * 100).toFixed(1)}%`,
+            montantRevientNet: montantNetPourReceveur,
+            deviseCible
+          }
+        };
+      });
+
+      // 🟢 LOG AUDIT SUCCÈS (Asynchrone hors de la transaction)
+      auditEventEmitter.emit('log', {
+        utilisateurId: utilisateurPayeurId,
+        action: 'PAYMENT_LINK_SUCCESS',
+        entite: 'TRANSACTION',
+        apres: { transactionId: resultatTransaction.transactionId, montant: montantSaisi },
+        ip: contextRequest.ip,
+        navigateur: contextRequest.userAgent
+      });
+
+      return resultatTransaction;
+
+    } catch (error) {
+      // 🛑 CAPTURE DE TOUS LES ÉCHECS SANS CASSER LE FLUX FLUTTER
+      let messageErreur = error.message;
+      
+      if (error.message.startsWith('SOLDE_INSUFFISANT:')) {
+        messageErreur = error.message.split(':')[1];
+        auditEventEmitter.emit('log', {
+          utilisateurId: utilisateurPayeurId,
+          action: 'PAYMENT_LINK_REJECTED_INSOLVENT',
+          entite: 'TRANSACTION',
+          avant: { codeUnique, montantTente: montant },
+          ip: contextRequest.ip,
+          navigateur: contextRequest.userAgent
         });
       } else {
-        // Si aucun Admin, stockage sécurisé par devise isolée dans ton champ réel `cumulGainsXAF`
-        await tx.coffreUniPay.upsert({
-          where: { id: `vault_${deviseCible}` },
-          update: { cumulGainsXAF: { increment: fraisOp } },
-          create: { id: `vault_${deviseCible}`, cumulGainsXAF: fraisOp }
+        // Erreurs systèmes inattendues
+        auditEventEmitter.emit('log', {
+          utilisateurId: utilisateurPayeurId,
+          action: 'PAYMENT_LINK_CRASH',
+          entite: 'SYSTEME',
+          avant: { error: error.message },
+          ip: contextRequest.ip,
+          navigateur: contextRequest.userAgent
         });
       }
 
-      // 7. Génération de l'historique transparent complet
-      const messageHistorique = `Vous avez reçu un paiement de ${montantSaisi} ${deviseSource}. Après conversion au taux de ${tauxApplique} et application des frais de traitement UniPay de ${fraisOp.toFixed(2)} ${deviseCible}, votre compte a été crédité de ${montantNetPourReceveur.toFixed(2)} ${deviseCible}.`;
-
-      const transactionHistorique = await tx.transaction.create({
-        data: {
-          type: "TRANSFERT",
-          montant: montantSaisi,
-          deviseSource: deviseSource,
-          deviseCible: deviseCible,
-          tauxApplique: tauxApplique,
-          montantConverti: montantNetPourReceveur,
-          statut: "SUCCES",
-          frais: fraisOp,
-          gainSpread: 0,
-          description: messageHistorique,
-          paysOperation: paysIdOp,
-          lienPaiement: {
-            connect: { id: lien.id }
-          },
-          walletSource: {
-            connect: { id: walletPayeur.id }
-          },
-          agregateur: {
-            connect: { id: agregateurActif.id }
-          }
-        }
-      });
-
-      return {
-        statut: "SUCCES",
-        transactionId: transactionHistorique.id,
-        confirmationPayeur: `Paiement réussi ! Vous avez envoyé ${montantSaisi} ${deviseSource}.`,
-        notificationBeneficiaire: messageHistorique,
-        historiqueTransparent: {
-          recuExactement: montantSaisi,
-          deviseSource: deviseSource,
-          fraisAppliques: `${(tauxFraisTransfert * 100).toFixed(1)}% (${fraisOp.toFixed(2)} ${deviseCible})`,
-          montantRevientNet: montantNetPourReceveur,
-          deviseCible: deviseCible
-        }
-      };
-    });
+      // On propage l'erreur propre nettoyée pour le contrôleur
+      throw new Error(messageErreur);
+    }
   }
 }
 

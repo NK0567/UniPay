@@ -69,6 +69,12 @@ enum MethodePaiement {
   LIEN
 }
 
+enum TypeOperationAgregateur {
+  DEPOT
+  RETRAIT
+  LES_DEUX
+}
+
 enum TypeAgregateur {
   MOBILE_MONEY
   BANQUE
@@ -80,12 +86,6 @@ enum StatutAgregateur {
   ACTIF
   SUSPENDU
   TEST
-}
-
-enum StatutCarte {
-  ACTIVE
-  BLOQUEE
-  EXPIREE
 }
 
 enum StatutLien {
@@ -117,12 +117,6 @@ enum StatutNotif {
   NON_LUE
 }
 
-enum StatutObjectif {
-  EN_COURS
-  ATTEINT
-  ABANDONNE
-}
-
 enum TypeMouvement {
   DEPOT
   RETRAIT
@@ -147,6 +141,34 @@ enum NiveauxSecurite {
   CRITIQUE
 }
 
+enum TypeEpargne {
+  SIMPLE       // L'utilisateur alimente lui-même son coffre
+  INTELLIGENTE // Le système propose ou automatise des prélèvements indolores
+}
+
+enum SousTypeEpargne {
+  LEGERE       // Retirable à tout moment sans frais
+  STRICTE      // Verrouillée jusqu'à 100% (ou rupture avec pénalité)
+}
+
+enum StatutObjectif {
+  EN_COURS
+  ATTEINT
+  CLOTURE
+  SUSPENDU
+}
+
+enum StatutCarte {
+  ACTIVE
+  BLOQUEE
+  EXPIREE
+}
+
+enum MarqueCarte {
+  VISA
+  MASTERCARD
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // MODÈLES
 // ═════════════════════════════════════════════════════════════════════════════
@@ -168,6 +190,7 @@ model Utilisateur {
   resetToken   String?
   resetTokenExpires DateTime?
 
+  codePIN      String?
   portefeuille    Portefeuille?
   sessions         Session[]
   blacklistTokens  BlacklistToken[]
@@ -215,6 +238,7 @@ model Transaction {
   statut            StatutTransaction @default(EN_ATTENTE)
   methodePaiement  MethodePaiement?
   description       String?           @db.Text
+  motifEchec        String?           @db.VarChar(255) // 👈 AJOUT CRITIQUE : Motif précis (ex: "SOLDE_INSUFFISANT", "PIN_INCORRECT")
   dateTransaction  DateTime          @default(now())
   
   // ─── 💰 COMPTABILITÉ DES GAINS SYSTÈME UNI-PAY (AJOUTS HISTORISATION) ───
@@ -272,14 +296,20 @@ model BlacklistToken {
 }
 
 model Agregateur {
-  id              String           @id @default(uuid())
-  nom             String           @db.VarChar(100)
-  type            TypeAgregateur
-  pays            String           @db.Char(2)
-  commissionPct   Decimal          @default(0) @db.Decimal(5, 4)
-  statut          StatutAgregateur @default(ACTIF)
-  transactions    Transaction[]
-  configurations  ConfigAgregateur[]
+  id             String            @id @default(uuid())
+  nom            String            @db.VarChar(100)
+  type           TypeAgregateur
+  pays           String            @db.Char(2) // Ex: "CM", "CI"
+  
+  // ─── OPTIMISATION FINANCIÈRE (SMART ROUTING) ───
+  operationType  TypeOperationAgregateur @default(LES_DEUX)
+  commissionPct  Decimal           @default(0) @db.Decimal(5, 4) // Ex: 0.0080 pour 0.8%
+  fraisFixes     Decimal           @default(0) @db.Decimal(18, 4) // Au cas où l'agrégateur prend un fixe (ex: 50 XAF)
+  
+  statut         StatutAgregateur  @default(ACTIF) // ACTIF, SUSPENDU, TEST (Sandbox)
+  transactions   Transaction[]
+  configurations ConfigAgregateur[]
+  
   @@map("agregateurs")
 }
 
@@ -304,13 +334,26 @@ model TauxChange {
 }
 
 model CarteVirtuelle {
-  id             String      @id @default(uuid())
-  portefeuilleId String      @unique
-  numeroTokenise String      @unique @db.VarChar(20)
-  cvvHash        String      @db.VarChar(255)
-  statut         StatutCarte @default(ACTIVE)
-  dateExpiration DateTime
-  portefeuille   Portefeuille @relation(fields: [portefeuilleId], references: [id], onDelete: Cascade)
+  id              String         @id @default(uuid())
+  portefeuilleId  String         @unique // 🔥 Règle : Une seule carte par portefeuille
+  idFournisseur   String         @unique // ID de la carte chez l'émetteur (ex: Flutterwave)
+  libelle         String         @default("Carte Unique UniPay") @db.VarChar(50)
+  marque          MarqueCarte    @default(VISA)
+  
+  // 🔐 Sécurité Bancaire (Chiffrée en BDD)
+  numeroMasque    String         @db.VarChar(20)  // Ex: "4111 11XX XXXX 8888" (Pour l'affichage écran)
+  numeroTokenise  String         @unique @db.VarChar(255) // Le vrai numéro chiffré en AES
+  cvvHash         String         @db.VarChar(255)
+  dateExpiration  DateTime
+  
+  // 🎛️ Moteur de limites de sécurité (Modifiables par l'utilisateur)
+  limitePlafond   Decimal        @default(500000.00) @db.Decimal(15, 2) // Plafond max par transaction
+  statut          StatutCarte    @default(ACTIVE)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  portefeuille    Portefeuille   @relation(fields: [portefeuilleId], references: [id], onDelete: Cascade)
   @@map("cartes_virtuelles")
 }
 
@@ -354,16 +397,21 @@ model CoffreUniPay {
 }
 
 model ObjectifEpargne {
-  id             String         @id @default(uuid())
+  id             String           @id @default(uuid())
   utilisateurId  String
   portefeuilleId String
-  libelle        String         @db.VarChar(150)
-  montantCible   Decimal        @db.Decimal(18, 4)
-  montantActuel  Decimal        @default(0) @db.Decimal(18, 4)
-  statut         StatutObjectif @default(EN_COURS)
-  utilisateur    Utilisateur        @relation(fields: [utilisateurId],  references: [id], onDelete: Cascade)
-  portefeuille   Portefeuille       @relation(fields: [portefeuilleId], references: [id])
+  libelle        String           @db.VarChar(150)
+  montantCible   Decimal          @db.Decimal(18, 4)
+  montantActuel  Decimal          @default(0) @db.Decimal(18, 4)
+  type           TypeEpargne      @default(SIMPLE)
+  sousType       SousTypeEpargne  @default(LEGERE)
+  statut         StatutObjectif   @default(EN_COURS)
+  autoPrelevement Boolean         @default(false) // Utile pour l'épargne Intelligente (Toggle)
+  
+  utilisateur    Utilisateur      @relation(fields: [utilisateurId],  references: [id], onDelete: Cascade)
+  portefeuille   Portefeuille     @relation(fields: [portefeuilleId], references: [id])
   mouvements     MouvementEpargne[]
+
   @@map("objectifs_epargne")
 }
 
@@ -410,6 +458,8 @@ model AuditLog {
   entite        String   @db.VarChar(50)
   avant         Json?
   apres         Json?
+  ip            String?      @db.VarChar(45)  // 👈 AJOUT BANCAIRE : IP de l'auteur
+  navigateur    String?      @db.Text         // 👈 AJOUT BANCAIRE : User-Agent pour la traçabilité
   dateAction    DateTime @default(now())
   utilisateur   Utilisateur? @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
   @@map("audit_logs")

@@ -1,31 +1,34 @@
-const chatbotService = require("../services/chotbot.service");
+const chatbotService = require('../services/chatbot.service');
 
-class ChatbotController{
-    async webhook(req, res){
-        try {
-            const utilisateurId = req.user.id;  //Identifié via le token JWT en production (ou ID lié au numero whatsapp en production)
-            const { message } = req.body;
+class ChatbotController {
+  async recevoirMessage(req, res) {
+    try {
+      // On récupère l'identifiant de l'utilisateur (injecté par ton middleware d'authentification)
+      // et le corps du message envoyé depuis WhatsApp / l'application.
+      const utilisateurId = req.user.id; 
+      const { message } = req.body;
 
-            if(!message){
-                return res.status(400).json({
-                    succes: false,
-                    message: "Le message est vide."
-                });
-            }
-            
-            const reponseBot = await chatbotService.traiterMessage(utilisateurId, message)
+      if (!message) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "Le contenu du message est requis." 
+        });
+      }
 
-            return res.status(200).json({
-                succes: true,
-                message: reponseBot
-            });
-        } catch (error) {
-            return res.status(500).json({
-                succes: false,
-                message: error.message
-            });
-        }
+      // Traitement du message par notre orchestrateur de briques UniPay
+      const reponseBot = await chatbotService.traiterMessage(utilisateurId, message);
+
+      // Pour WhatsApp, une réponse brute au format texte est souvent idéale
+      return res.status(200).send(reponseBot);
+
+    } catch (error) {
+      console.error("🚨 Erreur Contrôleur Chatbot :", error);
+      return res.status(500).json({ 
+        success: false, 
+        error: "Une erreur interne est survenue lors du traitement du message." 
+      });
     }
+  }
 }
 
-module.exports = new ChatbotController()
+module.exports = new ChatbotController();

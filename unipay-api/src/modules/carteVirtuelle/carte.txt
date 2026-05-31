@@ -1,0 +1,11 @@
+carte/
+   ├── controllers/
+   │     └── carte.controller.js     # Reçoit les requêtes HTTP (Créer, Geler, Configurer)
+   ├── services/
+   │     ├── carte.service.js        # Logique métier UniPay (Débit du client, Gain Admin)
+   │     ├── provider.service.js     # Communication avec le fournisseur (Simulation ou API Flutterwave)
+   │     └── webhook.service.js      # Reçoit les notifications de paiement réelles du réseau Visa/Mastercard
+   ├── repositories/
+   │     └── carte.repository.js     # Écrit et lit la table cartes_virtuelles via Prisma
+   └── routes/
+         └── carte.routes.js         # Déclare les endpoints d'accès

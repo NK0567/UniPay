@@ -1,14 +1,23 @@
-module.exports = (err, req, res, next)=>{
-    console.error(err.stack) // on affiche l'erreur dans la console pour le developpeur
+const logger = require('../utils/logger');
 
-    // si l'erreur à un status spécifique, on l'utilise, sinon on met 500 (erreur serveur)
-    const status = err.status || 500
-    const message = err.message || "une erreur interne est survenue sur le server UniPay.";
+const errorMiddleware = (err, req, res, next) => {
+  const statusCode = err.statusCode || 500;
+  
+  // Log complet de l'erreur avec le contexte de la requête HTTP
+  logger.error(`Erreur capturée sur la route [${req.method}] ${req.originalUrl}`, err, {
+    utilisateurId: req.user?.id || 'NON_AUTHENTIFIE',
+    ip: req.ip,
+    body: req.body
+  });
 
-    res.status(status).json({
-        succes: false,
-        message: message,
-        // on envoie le détail de l'erreur (stack) que si on est en mode developpeur
-        stack: process.env.NODE_ENV === 'developement' ? err.stack : {}
-    })
-}
+  // Réponse standardisée pour l'application Mobile ou Web
+  res.status(statusCode).json({
+    succes: false,
+    erreur: {
+      message: statusCode === 500 ? "Une erreur interne est survenue sur le serveur." : err.message,
+      code: err.code || "INTERNAL_SERVER_ERROR"
+    }
+  });
+};
+
+module.exports = errorMiddleware;

@@ -28,7 +28,9 @@ class AuthService {
   }
 
   async connexion(connexionDto) {
+    // console.log("=== DEBUG LOGIN ===", connexionDto);
     const util = await authRepository.trouverParEmailOuTelephone(connexionDto.identifiant);
+    // console.log("Utilisateur trouvé en BDD ?", util ? "OUI" : "NON");
     if (!util) {
         throw new Error("Identifiants de connexion invalides.");
     }
@@ -80,6 +82,54 @@ class AuthService {
     return { 
         message: "Votre mot de passe UniPay a été modifié avec succès." 
     };
+  }
+
+  /**
+   * 🆕 INITIALISATION DU CODE PIN
+   */
+  async configurerPremierPIN(utilisateurId, nouveauPin) {
+    if (!/^\d{4}$/.test(nouveauPin)) {
+      throw new Error("Le code PIN doit être composé de exactement 4 chiffres.");
+    }
+
+    // 🔥 On passe par le repository
+    const utilisateur = await utilisateurRepository.trouverParId(utilisateurId);
+    if (!utilisateur) throw new Error("Utilisateur introuvable.");
+    if (utilisateur.codePIN) throw new Error("Un code PIN existe déjà.");
+
+    const pinHashe = await bcrypt.hash(nouveauPin, 10);
+
+    // 🔥 On délègue la sauvegarde au repository
+    await utilisateurRepository.mettreAJourPin(utilisateurId, pinHashe);
+
+    return { message: "Votre code PIN a été configuré avec succès." };
+  }
+
+  /**
+   * 🔄 MODIFICATION DU CODE PIN
+   */
+  async modifierPINExistant(utilisateurId, ancienPin, nouveauPin) {
+    if (!/^\d{4}$/.test(nouveauPin)) {
+      throw new Error("Le nouveau code PIN doit contenir 4 chiffres.");
+    }
+
+    // 🔥 On passe par le repository
+    const utilisateur = await utilisateurRepository.trouverParId(utilisateurId);
+    if (!utilisateur || !utilisateur.codePIN) {
+      throw new Error("Aucun code PIN configuré pour ce compte.");
+    }
+
+    const ancienPinValide = await bcrypt.compare(ancienPin, utilisateur.codePIN);
+    if (!ancienPinValide) {
+      throw new Error("L'ancien code PIN saisi est incorrect.");
+    }
+
+    const nouveauPinHashe = await bcrypt.hash(nouveauPin, 10);
+
+    // 🔥 On délègue la mise à jour au repository
+    await utilisateurRepository.mettreAJourPin(utilisateurId, nouveauPinHashe);
+
+    return { message: "Votre code PIN a été modifié avec succès." };
   }
 }
 
