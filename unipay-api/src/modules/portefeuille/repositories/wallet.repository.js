@@ -1,16 +1,24 @@
-// on récupère notre instance Prisma pour parler à la base de donnée 
 const prisma = require('../../../database/prisma');
 
-class WalletRepository{
-    // cette fonction cherche le porte feuille unique lié a chaque utilisateur précis
-    async findByUserId(userId){
-        return await prisma.portefeuille.findUnique({
-            where:{
-            // on utilise l'ID que le middleware a extraire du token
-                utilisateurId: userId
-            }
-        });
-    }
+class WalletRepository {
+  // Trouver le portefeuille unique d'un utilisateur
+  async findByUtilisateurId(utilisateurId) {
+    return await prisma.portefeuille.findUnique({
+      where: { utilisateurId /*: userId*/ }
+    });
+  }
+/*
+ // Mettre à jour les soldes (Générique et réutilisable)
+  async updateBalances(userId, { solde, soldeBloque }) {
+    return await prisma.portefeuille.update({
+      where: { utilisateurId: userId },
+      data: {
+        ...(solde !== undefined && { solde }),
+        ...(soldeBloque !== undefined && { soldeBloque })
+      }
+    });
+  }
+  */
 }
 
-module.exports = new WalletRepository()
+module.exports = new WalletRepository();

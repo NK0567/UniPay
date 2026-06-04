@@ -1,6 +1,7 @@
 const walletRepository = require('../../portefeuille/repositories/wallet.repository');
 const tickerRepository = require('../repositories/ticker.repository');
-const conversionService = require('../../transaction/services/conversion.service');
+// 🔧 REFACTORING: Import du ConversionService centralisé (ancien chemin supprimé)
+const conversionService = require('../services/conversion.service');
 
 class TickerService {
   /**

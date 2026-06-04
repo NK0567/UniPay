@@ -1,4 +1,5 @@
-const conversionService = require('../../transaction/services/conversion.service');
+// 🔧 REFACTORING: Import du ConversionService centralisé
+const conversionService = require('../services/conversion.service');
 
 class TauxChangeController {
   /**
@@ -27,7 +28,8 @@ class TauxChangeController {
           montantSaisi: parseFloat(montant),
           deviseSource: source.toUpperCase(),
           deviseCible: cible.toUpperCase(),
-          tauxApplique: calcul.tauxAppliqueAuClient,
+          // 🔧 REFACTORING: Normalisation du nom de propriété (tauxAppliqueAuClient → tauxApplique)
+          tauxApplique: calcul.tauxApplique,
           montantConverti: calcul.montantConverti
         }
       });

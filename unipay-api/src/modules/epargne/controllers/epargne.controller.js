@@ -1,7 +1,8 @@
 const epargneService = require('../services/epargne.service');
 const epargneRepository = require('../repositories/epargne.repository');
 const prisma = require('../../../database/prisma');
-const currencyHelper = require('../../../helpers/currency.helper'); // Ton helper de devise
+const currencyHelper = require('../../../helpers/currency.helper');
+const analyseFluxService = require('../services/analyse.service');
 
 class EpargneController {
   
@@ -22,7 +23,6 @@ class EpargneController {
         return res.status(404).json({ success: false, error: "Portefeuille introuvable." });
       }
 
-      // 1. Création en Base de données
       const nouvelObjectif = await epargneRepository.creerObjectif({
         utilisateurId: req.user.id,
         portefeuilleId: utilisateur.portefeuille.id,
@@ -32,20 +32,15 @@ class EpargneController {
         sousType: sousType || "LEGERE"
       });
 
-      // 2. Génération dynamique des projections financières
       const cible = parseFloat(nouvelObjectif.montantCible);
-      
-      // Récupération de la devise dynamique
       let geo = currencyHelper.detecterParTelephone(utilisateur.telephone);
       const monnaie = utilisateur.portefeuille?.devise || geo.devise || "XAF";
 
-      // Simulation basée sur des durées standards (ex: objectif à atteindre en 6 mois)
       const dureeMoisStandard = 6;
       const cotisationMensuelle = Math.ceil(cible / dureeMoisStandard);
       const cotisationHebdomadaire = Math.ceil(cotisationMensuelle / 4);
       const cotisationQuotidienne = Math.ceil(cible / (dureeMoisStandard * 30));
 
-      // 3. Construction de la réponse enrichie
       return res.status(201).json({
         success: true,
         donnees: nouvelObjectif,
@@ -73,62 +68,46 @@ class EpargneController {
           }
         }
       });
-
     } catch (error) {
       return res.status(400).json({ success: false, error: error.message });
     }
   }
 
-
-  // 📥 ALIMENTATION D'UN OBJECTIF (MANUELLE OU AUTOMATIQUE)
   async alimenter(req, res) {
     try {
-      // req.user.id provient de ton authMiddleware
       const resultat = await epargneService.alimenterObjectif(req.user.id, req.body);
       return res.status(200).json(resultat);
     } catch (error) {
-      return res.status(400).json({ 
-        success: false, 
-        error: error.message 
-      });
+      return res.status(400).json({ success: false, error: error.message });
     }
   }
 
-  // 📤 RETRAIT / LIQUIDATION DU COFFRE
   async liquider(req, res) {
     try {
       const { id } = req.params;
-      const { force } = req.query; // ?force=true pour valider et passer outre le verrou strict
+      const { force } = req.query; 
 
       const resultat = await epargneService.liquiderObjectif(req.user.id, id, force === 'true');
       return res.status(200).json(resultat);
     } catch (error) {
-      // Interception de l'alerte de discipline levée par le service
       if (error.message === "PÉNALITÉ_REQUIS") {
         return res.status(202).json({
           success: false,
           code: "DISCIPLINE_PUNISHMENT",
-          message: "Attention : Votre objectif n'est pas encore atteint. Briser cette épargne stricte entraînera une pénalité de discipline de 0.05%."
+          message: "Attention : Votre objectif n'est pas encore atteint. Briser cette épargne stricte entraînera l'application des frais de blâme configurés."
         });
       }
-      return res.status(400).json({ 
-        success: false, 
-        error: error.message 
-      });
+      return res.status(400).json({ success: false, error: error.message });
     }
   }
 
-  // 🤖 TOGGLE ÉPARGNE INTELLIGENTE (Activation / Désactivation du prélèvement automatique)
   async basculerToggle(req, res) {
     try {
-      const { id } = req.params; // ID de l'objectif d'épargne
-      const { activer } = req.body; // boolean : true ou false
+      const { id } = req.params;
+      const { activer } = req.body;
 
       if (typeof activer !== 'boolean') {
-        return res.status(400).json({ 
-          success: false, 
-          error: "Le paramètre 'activer' doit être un booléen." 
-        });
+        return res.status(400).json({ success: false, error: "Le paramètre 'activer' doit être un booléen." });
       }
 
       await epargneService.basculerAutoPrelevement(req.user.id, id, activer);
@@ -140,9 +119,28 @@ class EpargneController {
           : "Le prélèvement automatique a été désactivé. Votre épargne reste active en mode manuel."
       });
     } catch (error) {
-      return res.status(400).json({ 
-        success: false, 
-        error: error.message 
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async obtenirAnalyseCapacite(req, res) {
+    try {
+      // req.user.id est extrait de manière sécurisée depuis le token JWT de l'utilisateur
+      const utilisateurId = req.user.id; 
+
+      // Appel de la brique algorithmique
+      const analyse = await analyseFluxService.analyserCapaciteEpargne(utilisateurId);
+
+      return res.status(200).json({
+        success: true,
+        message: "Analyse des flux financiers sur 90 jours calculée avec succès.",
+        data: analyse
+      });
+
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        error: "Impossible de générer l'analyse financière : " + error.message
       });
     }
   }

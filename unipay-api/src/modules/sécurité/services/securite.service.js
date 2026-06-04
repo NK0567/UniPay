@@ -1,3 +1,4 @@
+const prisma = require('../../../database/prisma');
 const securiteRepository = require('../repositories/securite.repository');
 const walletRepository = require('../../portefeuille/repositories/wallet.repository');
 const auditEventEmitter = require('../../../events/audit.event');

@@ -10,7 +10,10 @@ async function verifierVerrouOperation(req, res, next) {
     const biometrieValide = req.headers['x-biometric-verified'] === 'true';
 
     if (!utilisateurId) {
-      return res.status(401).json({ success: false, error: "Identification requise." });
+      return res.status(401).json({ 
+        success: false, 
+        error: "Identification requise." 
+      });
     }
 
     // Si aucune des deux méthodes n'est fournie
@@ -21,9 +24,14 @@ async function verifierVerrouOperation(req, res, next) {
       });
     }
 
-    const utilisateur = await prisma.utilisateur.findUnique({ where: { id: utilisateurId } });
+    const utilisateur = await prisma.utilisateur.findUnique({ 
+      where: { id: utilisateurId } 
+    });
     if (!utilisateur || !utilisateur.codePIN) {
-      return res.status(400).json({ success: false, error: "Sécurité non configurée sur ce compte." });
+      return res.status(400).json({ 
+        success: false, 
+        error: "Sécurité non configurée sur ce compte." 
+      });
     }
 
     // 🟢 CAS 1 : L'utilisateur a choisi la Biométrie sur l'interface
@@ -35,12 +43,18 @@ async function verifierVerrouOperation(req, res, next) {
     // 🟢 CAS 2 : L'utilisateur a tapé son code PIN sur le clavier dynamique
     const pinValide = await bcrypt.compare(pinRecu, utilisateur.codePIN);
     if (!pinValide) {
-      return res.status(401).json({ success: false, error: "Code PIN de sécurité incorrect." });
+      return res.status(401).json({ 
+        success: false, 
+        error: "Code PIN de sécurité incorrect." 
+      });
     }
 
     next();
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
   }
 }
 

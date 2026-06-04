@@ -1,11 +1,13 @@
 const prisma = require('../../../database/prisma');
 const currencyHelper = require('../../../helpers/currency.helper');
-const conversionService = require('../../transaction/services/conversion.service');
+// 🔧 REFACTORING: Import du ConversionService centralisé (anciennement de transaction, now in tauxChange)
+const conversionService = require('../../tauxChange/services/conversion.service');
 const lienPaiementService = require('../../lienPaiement/services/lien.service');
 const transfertLinkRepository = require('../../lienPaiement/repositories/lien.repository');
 // Imports ajoutés pour l'épargne et les cartes virtuelles
 const epargneService = require('../../epargne/services/epargne.service');
 const epargneRepository = require('../../epargne/repositories/epargne.repository');
+const carteService = require('../../carteVirtuelle/services/carte.service');
 // const carteVirtuelleService = require('../../carte/services/carte.service');
 
 class ChatbotService {
@@ -212,16 +214,6 @@ class ChatbotService {
         `👉 *Souhaitez-vous que je crée cet objectif en Épargne Stricte ?*\n` +
         `Répondez : _"Créer objectif [Nom du projet] de ${montantCible} pour ${dureeMois} mois"_`;
 
-
-
-      //   return `📊 *UniPay Intelligent — Simulation de Plan d'Épargne*\n\n` +
-      //     `Pour atteindre votre objectif de *${montantCible.toLocaleString()} ${deviseUtilisateur}* en *${dureeMois} mois*, voici les options adaptées que le système peut automatiser :\n\n` +
-      //     `📅 *Option Mensuelle :* Mettre de côté *${mensualite.toLocaleString()} ${deviseUtilisateur}* / mois.\n` +
-      //     `⏳ *Option Hebdomadaire :* Mettre de côté *${hebdomadaire.toLocaleString()} ${deviseUtilisateur}* / semaine.\n\n` +
-      //     `----------------------------------------\n` +
-      //     `⚠️ *Rappel Compliance :* Ce placement ne génère aucun intérêt ou bénéfice. Il s'agit d'une mise de côté stricte pour sécuriser votre projet.\n\n` +
-      //     `👉 *Souhaitez-vous que je crée cet objectif en Épargne Stricte ?*\n` +
-      //     `Répondez : _"Créer objectif [Nom du projet] de ${montantCible} pour ${dureeMois} mois"_`;
     }
 
     // 3. SCÉNARIO : Demande de retrait initiale
@@ -303,52 +295,135 @@ class ChatbotService {
     // =========================================================================
     // 💳 INTENTION D : CARTE VIRTUELLE INTERNATIONALE (VISA / MASTERCARD)
     // =========================================================================
-    if (texte.includes('carte') || texte.includes('virtuelle') || texte.includes('visa') || texte.includes('mastercard')) {
+    if (texte.includes('carte') || texte.includes('virtuelle') || texte.includes('visa') || texte.includes('mastercard') || texte.includes('geler') || texte.includes('bloquer') || texte.includes('plafond')) {
 
-      // Demande de création/achat immédiat d'une carte via le bot
+      const FRAIS_BASE_CREATION = 1000.00;
+
+      // 🆕 CAS 1 : DEMANDE DE CRÉATION / ÉMISSION
       if (texte.includes('procurer') || texte.includes('créer') || texte.includes('creer') || texte.includes('acheter')) {
         const reseauSelectionne = texte.includes('mastercard') ? 'MASTERCARD' : 'VISA';
-        const montantChargementInitial = montantMatch ? parseFloat(montantMatch[0]) : 0;
-
-        if (montantChargementInitial < 5000) {
-          return `⚠️ *Solde Initial Insuffisant* : Pour émettre une carte virtuelle internationale active, le montant de rechargement initial doit être d'au moins *5 000 ${deviseUtilisateur}*.\n\n` +
-            `👉 *Formulez votre commande comme ceci :* \n` +
-            `_"Créer une carte Visa de 10000"_ (Frais d'émission uniques de 2 000 XAF applicables).`;
-        }
 
         try {
-          const nouvelleCarte = await carteVirtuelleService.emettreCarte({
-            utilisateurId: utilisateur.id,
-            reseau: reseauSelectionne,
-            montantInitial: montantChargementInitial,
-            devise: deviseUtilisateur
-          });
+          // Appel direct à ton service métier (déduit 1000 de frais et crée la carte)
+          const executionCommande = await carteService.commanderCarteUnique(utilisateur.id);
 
           return `💳 *UniPay Cards — Émission Réussie !*\n\n` +
-            `Votre carte internationale dématérialisée a été rattachée à votre identité bancaire.\n\n` +
+            `Votre carte internationale dématérialisée unique a été activée et rattachée à votre identité bancaire.\n\n` +
             `• *Réseau partenaire :* ${reseauSelectionne}\n` +
             `• *Titulaire :* ${nomCompletUser}\n` +
-            `• *Solde initial chargé :* ${montantChargementInitial.toLocaleString()} ${deviseUtilisateur}\n\n` +
+            `• *Frais d'activation appliqués :* ${executionCommande.fraisClient}\n\n` +
             `🔒 *COORDONNÉES BANCAIRES SÉCURISÉES :*\n` +
-            `• *Numéro :* ${nouvelleCarte.numeroMasque} (Détails complets sur votre Dashboard)\n` +
-            `• *Expiration :* ${nouvelleCarte.expiration}\n` +
-            `• *CVV :* ***\n\n` +
-            `_Prête immédiatement pour vos dépenses publicitaires (Facebook, Google Ads) et vos abonnements mondiaux._`;
+            `• *Numéro :* ${executionCommande.numeroMasque} (Masqué pour votre sécurité)\n` +
+            `• *Expiration & CVV :* Disponibles en toute sécurité sur votre application.\n\n` +
+            `💡 _Votre carte pioche directement dans le solde de votre portefeuille UniPay. Vous pouvez l'utiliser dès maintenant pour vos campagnes publicitaires (Facebook, Google Ads) ou vos abonnements internationaux._`;
 
         } catch (error) {
-          return `❌ *Échec de la brique d'émission de carte* : ${error.message}`;
+          // Gestion propre de la règle "Carte Unique" ou "Solde Insuffisant"
+          if (error.message.includes("déjà une carte")) {
+            return `⚠️ *Opération refusée* : Vous possédez déjà une carte virtuelle UniPay active. Conformément à nos règles de sécurité, nous n'autorisons qu'une seule carte unique par compte utilisateur.`;
+          }
+          return `❌ *Échec de la demande d'émission* : ${error.message}`;
         }
       }
 
-      // Documentation explicative sur la valeur ajoutée des cartes
-      return `💳 *Tout sur les Cartes Virtuelles UniPay — Guide Complet*\n\n` +
-        `*Qu'est-ce que c'est ?*\n` +
-        `Une carte bancaire internationale Visa ou MasterCard 100% numérique, sans support plastique, éliminant tout risque de perte ou de vol physique.\n\n` +
-        `*Pourquoi l'adopter ?*\n` +
-        `• 🛒 *Achats Sécurisés :* Fait écran entre votre compte principal et les sites web (Netflix, Amazon, AliExpress).\n` +
-        `• 📈 *Business & Publicité :* Parfaitement acceptée pour le paiement des campagnes Facebook Ads, Google Ads et TikTok Ads.\n` +
-        `• 📊 *Zéro Dépassement :* Carte prépayée. Aucun découvert possible, vous ne dépensez que ce que vous chargez.\n\n` +
-        `👉 *Prêt à commander ?* Écrivez : _"Créer une carte Visa de 5000"_`;
+      // ❄️ CAS 2 : GELER OU DÉGELER LA CARTE
+      if (texte.includes('geler') || texte.includes('bloquer') || texte.includes('dégeler') || texte.includes('degel') || texte.includes('activer')) {
+        const action = (texte.includes('geler') || texte.includes('bloquer')) ? 'GELER' : 'DEGELER';
+
+        try {
+          await carteService.modifierStatutCarte(utilisateur.id, action);
+
+          if (action === 'GELER') {
+            return `❄️ *Sécurité UniPay — Carte Gelée*\n\n` +
+              `Votre carte virtuelle a été mise en pause immédiatement. Toutes les tentatives d'achats en ligne sur cette carte seront désormais rejetées.\n\n` +
+              `👉 Pour la réactiver à tout moment, écrivez simplement : _"Dégeler ma carte"_`;
+          } else {
+            return `🔥 *Sécurité UniPay — Carte Réactivée*\n\n` +
+              `Votre carte virtuelle unique est à nouveau opérationnelle et prête pour vos transactions en ligne.\n\n` +
+              `🛒 Vous pouvez reprendre vos paiements publicitaires et vos achats internationaux en toute fluidité.`;
+          }
+        } catch (error) {
+          return `❌ *Erreur de modification de statut* : ${error.message}`;
+        }
+      }
+
+      // 🎛️ CAS 3 : MODIFIER LE PLAFOND DE SÉCURITÉ
+      if (texte.includes('plafond') && (texte.includes('modifier') || texte.includes('changer') || texte.includes('augmenter') || texte.includes('baisser'))) {
+        const montantPlafondMatch = texte.match(/\d+[\d\s]*/); // Capture le nombre dans la phrase
+        const nouveauPlafond = montantPlafondMatch ? parseFloat(montantPlafondMatch[0].replace(/\s/g, '')) : 0;
+
+        if (!nouveauPlafond || nouveauPlafond <= 0) {
+          return `⚠️ *Format incorrect* : Pour modifier votre plafond de dépenses de sécurité, veuillez préciser un montant valide.\n\n` +
+            `👉 *Exemple :* _"Modifier le plafond de ma carte à 50000"_.`;
+        }
+
+        try {
+          const carteMiseAJour = await carteService.modifierPlafond(utilisateur.id, nouveauPlafond);
+          return `🎛️ *Configuration de Sécurité — Plafond Mis à Jour*\n\n` +
+            `Le plafond maximal de dépenses autorisé sur votre carte virtuelle a été reconfiguré.\n\n` +
+            `• *Nouveau Plafond :* *${carteMiseAJour.limitePlafond.toLocaleString()} ${deviseUtilisateur}*\n\n` +
+            `🛡️ _Cette limite fait écran de sécurité : aucun commerçant en ligne ne pourra vous débiter au-delà de ce montant, même si votre solde principal est plus élevé._`;
+        } catch (error) {
+          return `❌ *Erreur de modification du plafond* : ${error.message}`;
+        }
+      }
+
+      // 🔍 CAS 4 : CONSULTATION DU SOLDE ET DETAILS DE LA CARTE
+      if (texte.includes('solde') || texte.includes('info') || texte.includes('détail') || texte.includes('voir')) {
+        try {
+          const infosCarte = await carteService.consulterSoldeCarte(utilisateur.id);
+
+          return `🔍 *État de votre Carte Virtuelle UniPay*\n\n` +
+            `• *Numéro Masqué :* ${infosCarte.numeroMasque}\n` +
+            `• *Statut :* ${infosCarte.statut === 'ACTIVE' ? '✅ Opérationnelle' : '❄️ Gelée / Bloquée'}\n` +
+            `• *Solde disponible :* *${infosCarte.soldeDisponible}*\n` +
+            `• *Plafond de sécurité actuel :* *${infosCarte.plafondActuel}*\n\n` +
+            `💡 _Rappel : Votre carte consomme en temps réel le solde de votre portefeuille principal UniPay, dans la limite de votre plafond configuré._`;
+        } catch (error) {
+          return `⚠️ *Consultation impossible* : ${error.message}\n` +
+            `👉 Si vous n'avez pas encore de carte, demandez : _"Créer une carte Visa"_ pour en obtenir une pour seulement *${FRAIS_BASE_CREATION} ${deviseUtilisateur}*.`;
+        }
+      }
+
+      // 📜 CAS 5 : DOCUMENTATION EXHAUSTIVE ET GUIDE COMPLET DES CARTES
+      return `💳 *GUIDE COMPLET — CARTES VIRTUELLES INTERNATIONALES UNIPAY*\n\n` +
+        `L'assistant conversationnel UniPay vous permet de commander, configurer et sécuriser votre carte internationale Visa ou MasterCard par simple message.\n\n` +
+
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🌟 1. QU'EST-CE QUE LA CARTE VIRTUELLE UNIPAY ?\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `C'est une carte bancaire internationale 100% numérique (dématérialisée), sans support plastique. Elle est émise instantanément par nos partenaires bancaires globaux (BIN Sponsors) et sécurisée par un chiffrement de niveau militaire.\n\n` +
+        `• *Zéro Risque Physique :* Impossible de la perdre ou de se la faire voler dans la rue.\n` +
+        `• *Compatibilité Globale :* Elle fonctionne partout dans le monde sur les réseaux Visa et MasterCard.\n` +
+        `• *Cas d'usages phares :* Idéale pour vos abonnements (Netflix, Spotify, Prime Video), vos achats e-commerce (Amazon, AliExpress, Shein) et surtout pour les professionnels du digital (campagnes publicitaires Meta Ads, Google Ads, TikTok Ads).\n\n` +
+
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🧠 2. SYNC & ARCHITECTURE : LE PORTAGE SUR LE PORTEFEUILLE\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `Contrairement aux cartes bancaires traditionnelles lourdes, UniPay utilise une architecture fluide et interconnectée :\n\n` +
+        `• *Pas de double rechargement :* Votre carte virtuelle n'a pas un solde isolé. Elle est directement indexée sur le solde de votre portefeuille principal UniPay.\n` +
+        `• *Débit en Temps Réel :* Lorsque vous effectuez un achat en ligne, le commerçant interroge le commutateur UniPay. Si votre portefeuille est provisionné, le montant est débité instantanément.\n` +
+        `• *Plafond Écran de Protection :* Vous définissez vous-même une limite maximale de dépenses (un plafond). Même si votre portefeuille contient 500 000 XAF, si votre plafond de carte est fixé à 50 000 XAF, aucun site marchand ne pourra vous prélever plus de 50 000 XAF. C'est la protection anti-piratage absolue.\n\n` +
+
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🚀 3. LES ÉTAPES D'OBTENTION (ÉMISSION INSTANTANÉE)\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `Pour obtenir votre carte unique en moins de 30 secondes, la procédure est entièrement automatisée :\n\n` +
+        `1️⃣ *Vérification du Solde :* Assurez-vous de disposer d'au moins *${FRAIS_BASE_CREATION.toLocaleString()} ${deviseUtilisateur}* sur votre compte UniPay (frais de création uniques et définitifs, aucun abonnement mensuel caché).\n` +
+        `2️⃣ *Émission & Signature :* Notre système envoie une requête cryptée à notre fournisseur bancaire pour générer vos numéros uniques (PAN à 16 chiffres, date d'expiration et code CVV).\n` +
+        `3️⃣ *Sécurisation locale :* UniPay applique un algorithme de hachage sur votre CVV et chiffre votre numéro de carte en base de données avant de rattacher la carte à votre identité.\n` +
+        `4️⃣ *Mise à disposition :* Votre carte est immédiatement active et prête à l'emploi.\n\n` +
+
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🛠️ 4. COMMENT PILOTER VOTRE CARTE PAR MESSAGE ?\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `Vous pouvez envoyer ces ordres exacts au chatbot :\n\n` +
+        `• 🆕 *Pour commander :* _"Créer une carte Visa"_ ou _"Acheter une carte MasterCard"_.\n` +
+        `• 🔍 *Pour auditer la carte :* _"Voir le solde de ma carte"_ ou _"Infos carte"_ (Affiche le statut, le numéro masqué et le plafond actuel).\n` +
+        `• ❄️ *Pour stopper un piratage :* _"Geler ma carte"_ ou _"Bloquer ma carte"_. Le statut passe instantanément à BLOQUÉE (Gratuit).\n` +
+        `• 🔥 *Pour la réactiver :* _"Dégeler ma carte"_ ou _"Activer ma carte"_.\n` +
+        `• 🎛️ *Pour modifier la sécurité :* _"Modifier le plafond à 75000"_ (Ajuste instantanément votre bouclier de dépenses).\n\n` +
+        `👉 _Par quoi souhaitez-vous commencer ? Écrivez par exemple : "Créer une carte Visa"_`;
     }
 
     // =========================================================================

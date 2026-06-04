@@ -1,4 +1,5 @@
 const prisma = require('../../../database/prisma');
+const AppError = require('../../../utils/app-error');
 
 class AuthRepository {
   async trouverParEmailOuTelephone(identifiant) {
@@ -12,6 +13,12 @@ class AuthRepository {
     });
   }
 
+  async trouverParId(id) {
+    return await prisma.utilisateur.findUnique({
+      where: { id }
+    });
+  }
+
   async trouverParResetToken(token) {
     return await prisma.utilisateur.findFirst({
       where: {
@@ -21,8 +28,10 @@ class AuthRepository {
     });
   }
 
-  async creerUtilisateurEtPortefeuille(dto, codePays) {
+  async creerUtilisateurEtPortefeuille(dto, codePays, devise) {
+  try {
     return await prisma.$transaction(async (tx) => {
+      // 1. Création de l'utilisateur
       const util = await tx.utilisateur.create({
         data: {
           nom: dto.nom,
@@ -31,25 +40,37 @@ class AuthRepository {
           telephone: dto.telephone,
           motDePasse: dto.motDePasse,
           pays: codePays,
-          role: 'USER'
+          role: 'USER' // Aligné sur ton architecture
         }
       });
+
+      // 2. Création de son unique portefeuille avec la devise détectée
       await tx.portefeuille.create({
         data: { 
-            utilisateurId: util.id, 
-            solde: 0.0, 
-            soldeBloque: 0.0 }
+          utilisateurId: util.id, 
+          solde: 0.0, 
+          soldeBloque: 0.0,
+          devise: devise // 🔥 Injecté dynamiquement depuis le currencyHelper
+        }
       });
+
       return util;
     });
+  } catch (error) {
+    if (error.code === 'P2002') {
+      throw new AppError("Un compte UniPay existe déjà avec cet email ou ce numéro de téléphone.", 400);
+    }
+    throw error;
   }
+}
 
   async mettreAJourChampsReset(userId, token, expiration) {
     return await prisma.utilisateur.update({
       where: { id: userId },
       data: { 
         resetToken: token, 
-        resetTokenExpires: expiration }
+        resetTokenExpires: expiration 
+      }
     });
   }
 
@@ -64,19 +85,6 @@ class AuthRepository {
     });
   }
 
-  /**
-   * 🔍 Trouver un utilisateur par son ID pour vérifier l'état de son PIN
-   */
-  async trouverParId(id) {
-    return await prisma.utilisateur.findUnique({
-      where: { id },
-      include: { portefeuille: true } // Optionnel : si besoin de lier le portefeuille
-    });
-  }
-
-  /**
-   * 💾 Mettre à jour le code PIN hashé en base de données
-   */
   async mettreAJourPin(utilisateurId, pinHashe) {
     return await prisma.utilisateur.update({
       where: { id: utilisateurId },

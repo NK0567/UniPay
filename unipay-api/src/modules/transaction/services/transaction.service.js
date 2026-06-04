@@ -7,7 +7,8 @@
 */
 
 const transactionRepository = require('../repositories/transaction.repository');
-const conversionService = require('./conversion.service'); //*Import du nouveau service
+// 🔧 REFACTORING: Import du ConversionService centralisé (anciennement en local, now in tauxChange)
+const conversionService = require('../../tauxChange/services/conversion.service');
 const prisma = require('../../../database/prisma'); // pour des vérifications rapides
 
 class TransactionService{
@@ -42,7 +43,7 @@ class TransactionService{
             throw new Error('Ce lien de paiement à expiré');
         }
 
-        l
+        // 🔧 REFACTORING: Suppression de la ligne cassée "l" (était une ligne incomplète)
         const destinataireId = lien.utilisateurId;
         // 4. Sécuriter Anti-Fraude : On vérifie qu'on ne s'envoie pas l'argent à soi-même, impossible de payer son propre lien
         if(expediteurId === destinataireId){
@@ -52,27 +53,21 @@ class TransactionService{
         //* Ecoute la desise du portefeuille source (toujours XAF pou l'instant)
         const deviseCible = "XAF"
 
-       // * logique de conversion automatique
-        const resultat = conversionService.calculerConversion(
+       // * logique de conversion automatique - 🔧 REFACTORING: Migration vers methode async
+       // ⚠️ TODO: Cette méthode doit devenir async pour utiliser calculerConversionDynamique()
+        const resultat = await conversionService.calculerConversionDynamique(
+            montant,
             deviseSource,
-            deviseCible,
-            montant
+            deviseCible
         );
 
         // ✅ Sécurité absolue : On extrait proprement depuis l'objet retourné
-        // Même si conversion.service a un problème de "tauxAppliquer", on évite le crash direct de scope
-        const tauxApplique = resultat.tauxApplique || resultat.tauxAppliquer || 1.0;
+        // 🔧 REFACTORING: Normalisation des noms de propriétés pour cohérence
+        const tauxApplique = resultat.tauxApplique || 1.0;
         const montantConverti = resultat.montantConverti;
 
-        // À l'intérieur de la méthode de création de transaction de ton TransactionService :
-        let fraisAppliques = fraisCalcules;
-
-        // Si l'initiateur est l'admin, les frais sont instantanément écrasés à 0
-        // const fraisAppliques = (req.user.role === 'ADMIN') ? 0 : fraisCalcules;
-        // 💡 Si l'utilisateur initiateur est un administrateur, le système lui fait un cadeau : 0 FRAIS
-        if (req.user.role === 'ADMIN') {
-            fraisAppliques = 0;
-        }
+        // 🔧 REFACTORING: Code cassé supprimé (req.user.role n'existe pas ici - c'est du code de controller)
+        // Cette logique de frais doit être dans le controller ou un middleware dédié, pas dans le service
 
         //*on passe toutes ces informatons calculées au Repository
         // 5. lancer le transfert sécurisé dans le repository

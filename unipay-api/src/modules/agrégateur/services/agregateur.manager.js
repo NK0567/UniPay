@@ -1,63 +1,46 @@
 const prisma = require('../../../database/prisma');
-const orangeService = require('./orange.service');
-const mtnService = require('./mtn.service');
-const simulationService = require('./simulation.service');
 
 class AgregateurManager {
   /**
-   * 🧠 MOTEUR DE ROUTAGE INTELLIGENT (Smart Routing)
-   * Trouve l'agrégateur le plus rentable pour une opération donnée dans un pays donné
+   * 🧠 MOTEUR DE SMART ROUTING DYNAMIQUE
+   * Sélectionne l'agrégateur en mode TEST ou ACTIF le moins cher (Commission + Frais fixes cumulés)
    */
-  async selectionnerMeilleurAgregateur(pays, typeOperation) {
-    const typeRecherche = typeOperation === "DEPOT" ? "DEPOT" : "RETRAIT";
+  async selectionnerMeilleurAgregateur(paysCode, typeOperation) {
+    // operationType en BD accepte DEPOT, RETRAIT, ou LES_DEUX
+    const typesAcceptes = [typeOperation, 'LES_DEUX'];
 
-    // Recherche des agrégateurs disponibles (Actifs ou en mode Test pour les devs)
-    const agregateurs = await prisma.agregateur.findMany({
+    const agregateursDisponibles = await prisma.agregateur.findMany({
       where: {
-        pays: pays,
-        statut: { in: ["ACTIF", "TEST"] },
-        operationType: { in: [typeRecherche, "LES_DEUX"] }
+        pays: paysCode.toUpperCase(),
+        statut: { in: ['ACTIF', 'TEST'] }, // On accepte les modes Sandbox en dev
+        operationType: { in: typesAcceptes }
       }
     });
 
-    if (agregateurs.length === 0) {
-      throw new Error(`Aucun canal de paiement disponible pour le pays : ${pays}`);
+    if (!agregateursDisponibles || agregateursDisponibles.length === 0) {
+      throw new Error(`Configuration manquante : Aucun agrégateur disponible pour le pays [${paysCode}] et l'opération [${typeOperation}].`);
     }
 
-    // 🏎️ Tri par coût financier croissant (Le moins cher en premier)
-    // Coût = Commission % + Frais Fixes
-    agregateurs.sort((a, b) => {
-      const coutA = parseFloat(a.commissionPct) + parseFloat(a.fraisFixes);
-      const coutB = parseFloat(b.commissionPct) + parseFloat(b.fraisFixes);
-      return coutA - coutB;
+    // Algorithme de Smart Routing : on trie par coût total théorique ascendant
+    // On simule sur une base de 10 000 unités pour estimer l'impact combiné du % et du fixe
+    const montantSimulation = 10000;
+    
+    agregateursDisponibles.sort((a, b) => {
+      const coutA = (montantSimulation * parseFloat(a.commissionPct)) + parseFloat(a.fraisFixes);
+      const coutB = (montantSimulation * parseFloat(b.commissionPct)) + parseFloat(b.fraisFixes);
+      return coutA - coutB; // Le moins cher en premier
     });
 
-    // Renvoie le plus optimal (Le premier de la liste)
-    return agregateurs[0];
+    return agregateursDisponibles[0];
   }
 
   /**
-   * 🎛️ FACTORY D'EXÉCUTION
-   * Redirige vers le bon SDK fournisseur ou vers le simulateur si statut = TEST
+   * 🔌 PROVIDER ENGINE
+   * Retourne l'instance du driver d'exécution (ici, notre simulateur universel)
    */
   getProviderService(agregateur) {
-    // RÈGLE BANCAIRE DE TEST : Si l'agrégateur est en statut TEST, on déroute vers le simulateur
-    if (agregateur.statut === "TEST") {
-      return simulationService;
-    }
-
-    // Sinon, on aiguille vers le vrai code de production
-    switch (agregateur.nom.toUpperCase()) {
-      case 'ORANGE_MONEY':
-      case 'ORANGE':
-        return orangeService;
-      case 'MTN_MOMO':
-      case 'MTN':
-        return mtnService;
-      default:
-        // Par défaut, si pas encore de code de prod branché, on utilise la simulation sécurisée
-        return simulationService;
-    }
+    const SimulateurProvider = require('./simulateur.provider');
+    return new SimulateurProvider(agregateur);
   }
 }
 

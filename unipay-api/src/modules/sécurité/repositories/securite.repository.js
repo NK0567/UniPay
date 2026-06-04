@@ -5,17 +5,26 @@ class SecuriteRepository {
    * Compte le nombre d'échecs de transaction ou de PIN récents pour un utilisateur
    */
   async compterEchecsRecents(walletId, minutes = 15) {
-    const limiteTemps = new Date(Date.now() - minutes * 60 * 1000);
-    
-    return await prisma.transaction.count({
-      where: {
-        walletSourceId: walletId,
-        statut: "ECHEC",
-        motifEchec: { in: ["CODE_PIN_INCORRECT", "TENTATIVE_FRAUDE", "AUTHENTIFICATION_ECHOUER"] },
-        dateCreation: { gte: limiteTemps }
+  const limiteTemps = new Date(Date.now() - minutes * 60 * 1000);
+  
+  // Renvoie directement le compte numérique
+  return await prisma.transaction.count({
+    where: {
+      walletSourceId: walletId,
+      statut: "ECHEC",
+      motifEchec: {
+        in: [
+          "CODE_PIN_INCORRECT",
+          "TENTATIVE_FRAUDE",
+          "AUTHENTIFICATION_ECHOUER" 
+        ]
+      },
+      dateTransaction: { // ✅ Correction du nom du champ
+        gte: limiteTemps
       }
-    });
-  }
+    }
+  });
+}
 
   /**
    * Verrouille instantanément un portefeuille avec un motif précis

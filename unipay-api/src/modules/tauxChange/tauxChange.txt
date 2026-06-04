@@ -1,9 +1,0 @@
-# 💱 Conversion devises
-
----
-
-## Fonctionnalités
-
-✅ taux
-✅ conversion
-✅ multi-devise

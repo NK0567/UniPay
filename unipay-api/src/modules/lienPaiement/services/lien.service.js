@@ -2,7 +2,8 @@ const crypto = require('crypto');
 const prisma = require('../../../database/prisma');
 const transferLinkRepository = require('../repositories/lien.repository');
 const currencyHelper = require('../../../helpers/currency.helper');
-const cryptoUtil = require('../../../utils/crypto.util');
+// 🔧 REFACTORING: Import de EncryptionUtil (fusion de crypto.util.js + encryption.helper.js)
+const encryptionUtil = require('../../../utils/encryption.util');
 const authRepository = require('../../auth/repositories/auth.repository');
 const logger = require('../../../utils/logger');
 const auditEventEmitter = require('../../../events/audit.event');
@@ -19,7 +20,8 @@ class TransferLinkService {
     const dateExpiration = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     // 4. Calcul de la signature HMAC-SHA256 en utilisant le token et l'id de l'utilisateur
-    const signatureHmac = cryptoUtil.calculerSignatureLien(token, utilisateurId);
+    // 🔧 REFACTORING: Utilise encryptionUtil centralisé
+    const signatureHmac = encryptionUtil.calculerSignatureLien(token, utilisateurId);
 
     // 5. Envoi sécurisé au repository sous forme d'un objet unique déstructuré
     await transferLinkRepository.creerLien({
@@ -51,7 +53,8 @@ class TransferLinkService {
     }
 
     // 2. Vérification cryptographique de la signature HMAC
-    const estValide = cryptoUtil.verifierSignatureLien(
+    // 🔧 REFACTORING: Utilise encryptionUtil centralisé
+    const estValide = encryptionUtil.verifierSignatureLien(
       lien.token,
       lien.utilisateurId,
       signatureFournie

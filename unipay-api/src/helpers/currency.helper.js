@@ -290,7 +290,7 @@ class CurrencyHelper {
       corée: { code: 'KR', devise: 'KRW', synonymes: ['south korea', 'kr', 'coréen'] },
       singapour: { code: 'SG', devise: 'SGD', synonymes: ['sg', 'singapore'] },
       malaisie: { code: 'MY', devise: 'MYR', synonymes: ['my', 'malaysian'] },
-      indonésie: {code: 'ID', devise: 'IDR', synonymes: ['id', 'indonesian'] },
+      indonésie: { code: 'ID', devise: 'IDR', synonymes: ['id', 'indonesian'] },
       thaïlande: { code: 'TH', devise: 'THB', synonymes: ['thailand', 'th', 'thaïlandais'] },
       vietnam: { code: 'VN', devise: 'VND', synonymes: ['vn', 'vietnamien'] },
 
@@ -299,17 +299,17 @@ class CurrencyHelper {
       // =========================
 
       'émirats arabes unis': { code: 'AE', devise: 'AED', synonymes: ['uae', 'dubai', 'ae', 'émirats'] },
-      'arabie saoudite': { code: 'SA', devise: 'SAR', synonymes: ['saudi arabia', 'sa', 'saoudien']},
-      qatar: { code: 'QA', devise: 'QAR', synonymes: ['qa', 'qatari']},
-      koweit: { code: 'KW', devise: 'KWD', synonymes: ['kuwait', 'kw']},
-      israël: { code: 'IL', devise: 'ILS',synonymes: ['israel', 'il', 'israélien']},
-      turquie: {code: 'TR',devise: 'TRY',synonymes: ['turkey', 'tr', 'turc']},
+      'arabie saoudite': { code: 'SA', devise: 'SAR', synonymes: ['saudi arabia', 'sa', 'saoudien'] },
+      qatar: { code: 'QA', devise: 'QAR', synonymes: ['qa', 'qatari'] },
+      koweit: { code: 'KW', devise: 'KWD', synonymes: ['kuwait', 'kw'] },
+      israël: { code: 'IL', devise: 'ILS', synonymes: ['israel', 'il', 'israélien'] },
+      turquie: { code: 'TR', devise: 'TRY', synonymes: ['turkey', 'tr', 'turc'] },
 
       // =========================
       // OCÉANIE
       // =========================
-      australie: {code: 'AU',devise: 'AUD',synonymes: ['australia', 'au', 'australi']},
-      'nouvelle-zélande': {code: 'NZ',devise: 'NZD',synonymes: ['new zealand', 'nz', 'néo-zélandais']}
+      australie: { code: 'AU', devise: 'AUD', synonymes: ['australia', 'au', 'australi'] },
+      'nouvelle-zélande': { code: 'NZ', devise: 'NZD', synonymes: ['new zealand', 'nz', 'néo-zélandais'] }
     };
   }
 
@@ -364,7 +364,7 @@ class CurrencyHelper {
     return parseFloat((montant * 0.015).toFixed(2));
   }
 
-    // 💱 Conversion intelligente de devise UniPay
+  // 💱 Conversion intelligente de devise UniPay
   convertir(montant, deviseSource, deviseCible) {
     if (montant === undefined || montant === null || isNaN(montant)) {
       throw new Error("Le montant à convertir est invalide.");
@@ -423,7 +423,46 @@ class CurrencyHelper {
         );
       }
     }
-  } //
+  }
+
+  getCurrencyByPhoneOrCountry(telephone, pays) {
+    // 🛡️ SÉCURITÉ SYSTÈME : Gestion de l'agrégateur UniPay Mondial ("ALL" ou extrait en "AL")
+    if (pays && (pays.toUpperCase() === 'ALL' || pays.toUpperCase() === 'AL')) {
+      return 'XAF'; // Ou la devise pivot par défaut de ton choix pour l'agrégateur mondial
+    }
+
+    // 1. On tente d'abord par le pays si fourni
+    if (pays) {
+      // On cherche d'abord directement par le code ISO (ex: "CM", "SN")
+      const paysISO = pays.toUpperCase().trim();
+      for (const config of Object.values(this.cartographiePays)) {
+        if (config.code === paysISO) {
+          return config.devise;
+        }
+      }
+
+      // Si c'est le nom complet (ex: "Cameroun"), ta méthode existante s'en occupe
+      const deviseParNom = this.extraireDeviseParNomPays(pays);
+      if (deviseParNom) return deviseParNom;
+    }
+
+    // 2. Si le pays n'a rien donné, on tente par le téléphone (seulement s'il est fourni)
+    if (telephone) {
+      try {
+        const registre = this.detecterParTelephone(telephone);
+        if (registre && registre.devise) {
+          return registre.devise;
+        }
+      } catch (e) {
+        // On étouffe l'erreur pour éviter le crash de l'API si l'indicatif n'est pas supporté
+        return null;
+      }
+    }
+
+    // Aucun critère n'a matché, on retourne null (géré proprement par notre AdminService)
+    return null;
+  }
+
 }
 
 module.exports = new CurrencyHelper();

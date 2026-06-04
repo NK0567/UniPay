@@ -1,10 +1,9 @@
 // on importe les modules nécessaires pour créer l'application Express
 const express = require('express') // framework pour notre serveur 
 const cors = require('cors')  // pour autoriser les futurs frontent (REACT/FLUTTER) à parler avec notre api
-const { limiteurGenerique } = require('./config/ratLimiter');
+const { limiteurGenerique } = require('./config/rateLimiter');
 const configurerSwagger = require('./config/swagger');
-const globalRouter = require('./routes'); 
-
+// 🔧 REFACTORING: Import unique de globalRouter (ligne dupliquée supprimée)
 const globalRouter = require('./routes'); // Appelle automatiquement le dossier src/routes/index.js
 
 const errorMiddleware = require('./middlewares/error.middleware') // middleware pour gérer les erreurs

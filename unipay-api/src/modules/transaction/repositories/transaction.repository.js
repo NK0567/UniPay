@@ -1,7 +1,8 @@
 // Ce fichier effectue trois actions en une seule fois dans la base de données : vérifier/débiter l'expéditeur, créditer le destinataire, et enregistrer l'historique
 const prisma = require('../../../database/prisma');
 
-class TransactioRepository{
+// 🔧 REFACTORING: Correction de la typo dans le nom de classe (TransactioRepository → TransactionRepository)
+class TransactionRepository{
     //Cette fonction éxecute le transfert de portefeuille à portefeuille de manière sécuriser et atomique
     async executerTransfertViaLien(expediteurId, destinataireId, lienId, montant, montantConverti, tauxApplique, deviseSource, deviseCible){
         // on utilise prisma.$transaction pour regrouper toutes les requêtes
@@ -86,4 +87,4 @@ class TransactioRepository{
 }
 
 
-module.exports = new TransactioRepository()
+module.exports = new TransactionRepository()

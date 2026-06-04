@@ -184,6 +184,178 @@ async function main() {
     }
 
     console.log('🎉 Seed UniPay terminé avec succès.');
+
+    // ==========================================
+    // CONFIGURATIONS DES FRAIS ET COMMISSIONS UNIPAY
+    // ==========================================
+    const configsFinancieres = [
+        { 
+            cle: "FRAIS_DEPOT_PCT", 
+            valeur: "2.0", 
+            type: "FINANCIER", 
+            description: "Frais de dépôt par défaut facturés au client (%)" 
+
+        },
+        { 
+            cle: "FRAIS_RETRAIT_PCT", 
+            valeur: "1.5", 
+            type: "FINANCIER", 
+            description: "Frais de retrait par défaut facturés au client (%)" 
+
+        },
+        { 
+            cle: "FRAIS_PAIEMENT_LIEN_PCT", 
+            valeur: "0.0", 
+            type: "FINANCIER", 
+            description: "Frais de transfert interne UniPay par lien (%)" 
+
+        },
+        {
+            cle: "FRAIS_BLAME_EPARGNE_PCT", // 🎯 Changement de clé pour refléter le pourcentage
+            valeur: "0.5.0",                  // 5.0% de pénalité sur le solde épargné
+            type: "FINANCIER",
+            description: "Pénalité en pourcentage prélevée en cas de rupture d'épargne stricte (%)"
+        },
+        { 
+            cle: "FRAIS_ABONNEMENT_CARTE_FIXE", 
+            valeur: "2000", 
+            type: "FINANCIER", 
+            description: "Frais d'abonnement / création de carte virtuelle (Montant)" 
+        },
+        { 
+            cle: "FRAIS_PAIEMENT_CARTE_VIRTUELLE_PCT", 
+            valeur: "1.0", 
+            type: "FINANCIER", 
+            description: "Commission sur paiement en ligne par carte virtuelle (%)" 
+        },
+        { 
+            cle: "FRAIS_CONVERSION_SPREAD_PCT", 
+            valeur: "0.5", 
+            type: "FINANCIER", 
+            description: "Marge (Spread) UniPay appliquée sur le taux de change (%)" 
+        }
+    ];
+
+    for (const config of configsFinancieres) {
+        await prisma.configurationSysteme.upsert({
+            where: { cle: config.cle },
+            update: {}, // Ne pas écraser si l'admin a déjà modifié les valeurs
+            create: config
+        });
+    }
+    console.log("📊 Toutes les commissions dynamiques ont été injectées.");
+
+    console.log('⚡ Injection de la matrice des 11 agrégateurs internationaux...');
+
+const matriceAgregateurs = [
+  // --- 🇨🇲 CAMEROUN (Zone XAF) ---
+  { 
+    id: "flw-cm-momo", 
+    nom: "MTN_MOMO_FLUTTERWAVE", 
+    type: "MOBILE_MONEY", 
+    pays: "CM", 
+    operationType: "LES_DEUX", 
+    commissionPct: 0.0150, 
+    fraisFixes: 0 
+},
+  { 
+    id: "bizao-cm-momo", 
+    nom: "MTN_MOMO_BIZAO", 
+    type: "MOBILE_MONEY", 
+    pays: "CM", 
+    operationType: "LES_DEUX", 
+    commissionPct: 0.0110, 
+    fraisFixes: 10 
+}, // 🧠 Le Smart Routing va préférer celui-ci (1.1%) !
+  { 
+    id: "cinetpay-cm-orange", 
+    nom: "ORANGE_MONEY_CINETPAY", 
+    type: "MOBILE_MONEY", 
+    pays: "CM", 
+    operationType: "LES_DEUX", 
+    commissionPct: 0.0200, 
+    fraisFixes: 0 
+},
+  { 
+    id: "monetbill-cm-orange", 
+    nom: "ORANGE_MONEY_MONETBILL", 
+    type: "MOBILE_MONEY", 
+    pays: "CM", 
+    operationType: "LES_DEUX", 
+    commissionPct: 0.0130, 
+    fraisFixes: 0 
+}, // 🧠 Préféré pour Orange !
+
+  // --- 🇨🇮 CÔTE D'IVOIRE & 🇸🇳 SÉNÉGAL (Zone XOF) ---
+  { 
+    id: "touchpay-sn-wave", 
+    nom: "WAVE_TOUCHPAY", 
+    type: "MOBILE_MONEY", 
+    pays: "SN", 
+    operationType: "LES_DEUX", 
+    commissionPct: 0.0060, 
+    fraisFixes: 0 
+},
+  { 
+    id: "intouch-ci-orange", 
+    nom: "ORANGE_CI_INTOUCH", 
+    type: "MOBILE_MONEY", 
+    pays: "CI", 
+    operationType: "LES_DEUX", 
+    commissionPct: 0.0180, 
+    fraisFixes: 0 
+},
+  { 
+    id: "paystack-ci-momo", 
+    nom: "MTN_CI_PAYSTACK", 
+    type: "MOBILE_MONEY", 
+    pays: "CI", 
+    operationType: "LES_DEUX", 
+    commissionPct: 0.0140, 
+    fraisFixes: 0 
+},
+  { 
+    id: "serdipay-tg-moov", 
+    nom: "MOOV_BENIN_SERDIPAY", 
+    type: "MOBILE_MONEY", 
+    pays: "BJ", 
+    operationType: "LES_DEUX", 
+    commissionPct: 0.0125, fraisFixes: 25 
+},
+
+  // --- 🇪🇺 FRANCE / 🇺🇸 USA (Zone EUR/USD) ---
+  { 
+    id: "stripe-eu-card", 
+    nom: "STRIPE_EUROPE", 
+    type: "CARTE", 
+    pays: "FR", 
+    operationType: "LES_DEUX", 
+    commissionPct: 0.0140, 
+    fraisFixes: 150 
+},
+  { 
+    id: "paymoney-us-wallet", 
+    nom: "PAYMONEY_USA", 
+    type: "CARTE", 
+    pays: "US", 
+    operationType: "LES_DEUX", 
+    commissionPct: 0.0290, 
+    fraisFixes: 200 
+}
+];
+
+for (const ag of matriceAgregateurs) {
+  await prisma.agregateur.upsert({
+    where: { id: ag.id },
+    update: {
+      commissionPct: ag.commissionPct,
+      fraisFixes: ag.fraisFixes,
+      operationType: ag.operationType
+    },
+    create: ag
+  });
+}
+console.log('✅ Matrice d\'agrégateurs déployée.');
 }
 
 main()

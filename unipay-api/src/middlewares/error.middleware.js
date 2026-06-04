@@ -1,23 +1,31 @@
-const logger = require('../utils/logger');
+// src/middlewares/error.middleware.js
+const logger = require('../utils/logger'); // Ajuste le chemin selon ton utilitaire de log si nécessaire
 
-const errorMiddleware = (err, req, res, next) => {
+function errorMiddleware(err, req, res, next) {
+  // 1. On récupère le statut HTTP (par défaut 500 si non défini)
   const statusCode = err.statusCode || 500;
   
-  // Log complet de l'erreur avec le contexte de la requête HTTP
-  logger.error(`Erreur capturée sur la route [${req.method}] ${req.originalUrl}`, err, {
-    utilisateurId: req.user?.id || 'NON_AUTHENTIFIE',
-    ip: req.ip,
-    body: req.body
-  });
+  // 2. On détermine le code d'erreur textuel selon le statut
+  let codeErreur = 'INTERNAL_SERVER_ERROR';
+  if (statusCode === 400) codeErreur = 'BAD_REQUEST';
+  if (statusCode === 401) codeErreur = 'UNAUTHORIZED';
+  if (statusCode === 403) codeErreur = 'FORBIDDEN';
+  if (statusCode === 404) codeErreur = 'NOT_FOUND';
+  if (statusCode === 409) codeErreur = 'CONFLICT';
 
-  // Réponse standardisée pour l'application Mobile ou Web
-  res.status(statusCode).json({
-    succes: false,
+  // 3. Log de l'erreur dans la console pour le développeur (uniquement si c'est un vrai crash 500)
+  if (statusCode === 500) {
+    logger.error(`[CRASH API 500] ${req.method} ${req.originalUrl} : ${err.message}`, { stack: err.stack });
+  }
+
+  // 4. Envoi de la réponse formatée et propre au client (Postman/Flutter)
+  return res.status(statusCode).json({
+    success: false,
     erreur: {
-      message: statusCode === 500 ? "Une erreur interne est survenue sur le serveur." : err.message,
-      code: err.code || "INTERNAL_SERVER_ERROR"
+      message: err.message || "Une erreur interne est survenue sur le serveur.",
+      code: codeErreur
     }
   });
-};
+}
 
 module.exports = errorMiddleware;

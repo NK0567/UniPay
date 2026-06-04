@@ -1,112 +1,307 @@
 const adminRepository = require("../repositories/admin.repository");
 const prisma = require("../../../database/prisma");
+const currencyHelper = require("../../../helpers/currency.helper");
 
 class AdminService {
-  async genererRapportDashboard() {
-    const transactions = await adminRepository.trouveTransactionSucces();
+  /**
+   * 📊 GÉNÉRATION DU RAPPORT DASHBOARD ULTIME (MONITORING 360°)
+   * @param {string} adminId - ID de l'admin connecté pour localiser son pays/sa devise cible
+   */
+  async genererRapportDashboard(adminId) {
+    // Récupération des données brutes
+    const toutesLesTransactions = await adminRepository.trouverToutesLesTransactions();
     const agregateursBD = await adminRepository.listerTousLesAgregateurs();
 
-    // 💡 Récupération des données globales de masse exigées par ton cahier des charges
+    // Détermination dynamique REELLE de la devise de l'admin (Sans aucune valeur par défaut)
+    if (!adminId) {
+      throw new Error("L'identifiant de l'administrateur (adminId) est requis pour générer le rapport dans sa devise.");
+    }
+
+    const adminProfil = await prisma.utilisateur.findUnique({
+      where: { id: adminId },
+      select: { telephone: true, pays: true }
+    });
+
+    if (!adminProfil) {
+      throw new Error("Impossible de générer le rapport : Profil administrateur introuvable.");
+    }
+
+    const deviseAdmin = currencyHelper.getCurrencyByPhoneOrCountry(adminProfil.telephone, adminProfil.pays);
+
+    if (!deviseAdmin) {
+      throw new Error(`Impossible de déterminer la devise locale pour le pays [${adminProfil.pays}] ou le numéro [${adminProfil.telephone}].`);
+    }
+
+    // 1. 👥 MONITORING DES UTILISATEURS
     const totalUtilisateurs = await prisma.utilisateur.count();
-    
-    // Calcul de l'argent total circulant (Masse monétaire présente dans UniPay)
-    const sommePortefeuilles = await prisma.portefeuille.aggregate({
-      _sum: { solde: true }
-    });
-    const coffreGlobal = await prisma.coffreUniPay.findUnique({ 
-        where: { id: 'global_vault' } 
-    });
+    const utilisateursSuspendus = await prisma.utilisateur.count({ where: { statutCompte: "SUSPENDU" } });
+    const utilisateursActifs = await prisma.utilisateur.count({ where: { statutCompte: "ACTIF" } });
+    const utilisateursEnAttenteAprobation = await prisma.utilisateur.count({ where: { statutKYC: "NON_VERIFIE" } });
+
+    // 2. 🏦 MASSE MONÉTAIRE GLOBAL (Dynamisé selon la devise système ou admin)
+    const sommePortefeuilles = await prisma.portefeuille.aggregate({ _sum: { solde: true } });
+    const coffreGlobal = await prisma.coffreUniPay.findUnique({ where: { id: 'global_vault' } });
     const argentCirculantTotal = parseFloat(sommePortefeuilles._sum.solde || 0) + parseFloat(coffreGlobal?.cumulGainsXAF || 0);
 
-    let volumeTransfereTotalXAF = 0;
+    // 3. 🐷 MONITORING ÉPARGNE & CARTES
+    const sommeEpargnesEnCours = await prisma.epargne?.aggregate({ _sum: { montantAccumule: true }, where: { statut: "EN_COURS" } });
+    const nombreEpargnantsActifs = (await prisma.epargne?.distinct({ by: ['utilisateurId'], where: { statut: "EN_COURS" } }))?.length || 0;
+    const cartesAbonnéesCount = await prisma.carteVirtuelle?.count() || 0;
+    const cartesActivesCount = await prisma.carteVirtuelle?.count({ where: { statut: "ACTIVE" } }) || 0;
 
-    // Cases de ventilation détaillées des revenus d'UniPay (Bénéfices nets)
-    let revLienPaiement = 0;
+    // 4. 📊 INITIALISATION DES COMPTEURS ET FLUX DÉTAILLÉS
+    let volumeTransfereTotal = 0;
+    let volumeLienPaiementTotal = 0;
+    let totalPaiementsDevisesIdentiques = 0;
+
+    // États des transactions
+    let transactionsReussiesCount = 0;
+    let transactionsEchoueesCount = 0;
+    const detailsEchecs = {};
+
+    // Ventilation des bénéfices nets UniPay
+    let revDepots = 0;
+    let revRetraits = 0;
+    let revLienPaiementP2P = 0;
     let revConversionSpread = 0;
-    let revCartesVirtuelles = 0;
-    let revDepotsRetraits = 0;
+    let revCartesVirtuellesAbonnement = 0;
+    let revCartesVirtuellesPaiement = 0;
+    let revBlameEpargneStricte = 0;
 
     const revenusParAgregateur = {};
     const revenusParPays = {};
+    const revenusParOperateur = {};
 
-    for (const tx of transactions) {
-      const montantEnXAF = tx.montantConverti ? parseFloat(tx.montantConverti) : parseFloat(tx.montant || 0);
-      const fraisEnXAF = parseFloat(tx.frais || 0);
-      const spreadEnXAF = parseFloat(tx.gainSpread || 0);
+    // 5. 🔄 ANALYSE DU FLUX DES TRANSACTIONS
+    for (const tx of toutesLesTransactions) {
+      // On utilise le montant converti ou de base de la transaction sans forcer le libellé XAF
+      const montantBase = tx.montantConverti ? parseFloat(tx.montantConverti) : parseFloat(tx.montant || 0);
 
-      volumeTransfereTotalXAF += montantEnXAF;
+      // ---- TRACE A : ANALYSE DES ÉCHECS / SUCCÈS OPÉRATIONNELS ----
+      if (tx.statut === "ECHEC") {
+        transactionsEchoueesCount++;
+        const motif = tx.motifEchec || "MOTIF_INCONNU";
+        detailsEchecs[motif] = (detailsEchecs[motif] || 0) + 1;
+        continue;
+      }
 
-      // Calcul des commissions des partenaires externes pour obtenir le bénéfice net UniPay
-      let commissionPartenaireXAF = 0;
+      // Si on arrive ici, la transaction est un SUCCÈS
+      transactionsReussiesCount++;
+      volumeTransfereTotal += montantBase;
+
+      // ---- TRACE B : FLUX SUR LES LIENS DE PAIEMENT ----
+      if (tx.lienPaiementId || tx.type === "LIEN_PAIEMENT") {
+        volumeLienPaiementTotal += montantBase;
+      }
+
+      // ---- TRACE C : TRANSACTIONS SANS CONVERSION ----
+      if (tx.deviseSource && tx.deviseCible && tx.deviseSource === tx.deviseCible) {
+        totalPaiementsDevisesIdentiques++;
+      }
+
+      // ---- TRACE D : CALCULS ET VENTILATION FINANCIÈRE DES GAINS NETS ----
+      const fraisBase = parseFloat(tx.frais || 0);
+      const spreadBase = parseFloat(tx.gainSpread || 0);
+
+      let commissionPartenaire = 0;
       if (tx.agregateur) {
         const pct = parseFloat(tx.agregateur.commissionPct || 0);
-        commissionPartenaireXAF = montantEnXAF * pct;
+        const fraisFixes = parseFloat(tx.agregateur.fraisFixes || 0);
+        commissionPartenaire = (montantBase * pct) + fraisFixes;
       }
 
-      // Le gain net d'UniPay sur cette transaction précise
-      const gainNetUniPay = (fraisEnXAF + spreadEnXAF) - commissionPartenaireXAF;
+      const gainNetUniPay = (fraisBase + spreadBase) - commissionPartenaire;
 
-      // 1. Ventilation des revenus par canal d'activité (Exigence UI)
-      if (tx.lienPaiementId || tx.type === "TRANSFERT") {
-        revLienPaiement += fraisEnXAF;
-      } else if (tx.type === "DEPOT" || tx.type === "RETRAIT") {
-        revDepotsRetraits += fraisEnXAF;
-      } else if (tx.methodePaiement === "CARTE" || (tx.agregateur && tx.agregateur.type === "CARTE")) {
-        revCartesVirtuelles += fraisEnXAF;
-      } else {
-        // Fallback dans les frais opérationnels
-        revLienPaiement += fraisEnXAF;
+      switch (tx.type) {
+        case "DEPOT": revDepots += gainNetUniPay; break;
+        case "RETRAIT": revRetraits += gainNetUniPay; break;
+        case "TRANSFERT":
+        case "LIEN_PAIEMENT": revLienPaiementP2P += gainNetUniPay; break;
+        case "ABONNEMENT_CARTE": revCartesVirtuellesAbonnement += gainNetUniPay; break;
+        case "PAIEMENT_CARTE": revCartesVirtuellesPaiement += gainNetUniPay; break;
+        case "RUPTURE_EPARGNE_STRICTE": revBlameEpargneStricte += gainNetUniPay; break;
+        default: revLienPaiementP2P += gainNetUniPay;
       }
 
-      // Le spread de conversion de devises alimente sa propre case dédiée
-      revConversionSpread += spreadEnXAF;
+      if (spreadBase > 0) revConversionSpread += spreadBase;
 
-      // 2. Ventilation par agrégateur physique/virtuel
-      const nomAgreg = tx.agregateur ? tx.agregateur.nom : "PAIEMENT_INTERNE";
+      const nomAgreg = tx.agregateur ? tx.agregateur.nom : "INTERNE_UNIPAY";
       revenusParAgregateur[nomAgreg] = (revenusParAgregateur[nomAgreg] || 0) + gainNetUniPay;
 
-      // 3. Ventilation par pays de l'opération
-      const pays = tx.paysOperation || "CM";
-      revenusParPays[pays] = (revenusParPays[pays] || 0) + gainNetUniPay;
-    }
+      // ... (Fin de tes switch et calculs d'opérateurs juste au-dessus)
+      if (tx.agregateur) {
+        const operateur = tx.agregateur.nom.split('_')[0] || "AUTRE";
+        revenusParOperateur[operateur] = (revenusParOperateur[operateur] || 0) + gainNetUniPay;
+      } else {
+        revenusParOperateur["INTERNE"] = (revenusParOperateur["INTERNE"] || 0) + gainNetUniPay;
+      }
 
-    // Calcul du montant global (Chiffre d'affaires / Bénéfice net cumulé total)
-    const montantGlobalBeneficeNet = revLienPaiement + revConversionSpread + revCartesVirtuelles + revDepotsRetraits;
+      // 🎯 REMPLACE TOUTE LA FIN DE LA BOUCLE PAR CE BLOC UNIQUE (Supprime l'ancienne constante pays)
+      const paysOperationNet = tx.paysOperation || tx.agregateur?.pays;
 
-    // Formatage de la liste des agrégateurs pour le tableau du Dashboard
-    const listeAgregateursDashboard = agregateursBD.map(ag => ({
-      id: ag.id,
-      nom: ag.nom,
-      type: ag.type,
-      pays: ag.pays,
-      commission: `${parseFloat(ag.commissionPct) * 100}%`,
-      statut: ag.statut,
-      revenuGenereNet: Math.round(revenusParAgregateur[ag.nom] || 0)
-    }));
+      if (paysOperationNet) {
+        revenusParPays[paysOperationNet] = (revenusParPays[paysOperationNet] || 0) + gainNetUniPay;
+      } else {
+        revenusParPays["NON_DEFINI"] = (revenusParPays["NON_DEFINI"] || 0) + gainNetUniPay;
+      }
+
+    } // 👈 Fin de la boucle for (toutesLesTransactions)
+    const montantGlobalBeneficeNet = revDepots + revRetraits + revLienPaiementP2P + revConversionSpread + revCartesVirtuellesAbonnement + revCartesVirtuellesPaiement + revBlameEpargneStricte;
+
+    // Traduction dynamique de la liste des agrégateurs
+    const listeAgregateursDashboard = agregateursBD.map(ag => {
+      // Utilisation du helper pour lier le symbole monétaire exact selon le pays de l'agrégateur
+      const deviseAgreg = currencyHelper.getCurrencyByPhoneOrCountry(null, ag.pays)
+      if (!deviseAgreg) {
+        throw new Error(`Configuration manquante : Impossible de détecter la devise pour l'agrégateur ${ag.nom} avec le pays [${ag.pays}].`);
+      }
+
+      return {
+        id: ag.id,
+        nom: ag.nom,
+        type: ag.type,
+        pays: ag.pays,
+        commissionConfiguration: `${(parseFloat(ag.commissionPct) * 100).toFixed(2)}%`,
+        fraisFixesConfiguration: `${parseFloat(ag.fraisFixes || 0)} ${deviseAgreg}`, // 💡 Fin du XAF en dur
+        statut: ag.statut,
+        revenuGenereNetLocal: Math.round(revenusParAgregateur[ag.nom] || 0),
+        deviseAgreg: deviseAgreg
+      };
+    });
 
     return {
-      cards: {
-        totalTransactions: transactions.length,
+      metadataReporting: {
+        devisePrincipaleDashboard: deviseAdmin
+      },
+      cardsGlobales: {
         nombreTotalUtilisateurs: totalUtilisateurs,
         argentCirculantDansUniPay: Math.round(argentCirculantTotal),
-        volumeTransfereTotalXAF: Math.round(volumeTransfereTotalXAF),
-        montantGlobalBeneficeNetXAF: Math.round(montantGlobalBeneficeNet) // Affiché en gros sur l'UI avec le bouton détails
+        volumeTransfereTotal: Math.round(volumeTransfereTotal),
+        montantGlobalBeneficeNet: Math.round(montantGlobalBeneficeNet)
       },
-      boutonDetailsRevenus: {
-        bénéficeLienPaiementXAF: Math.round(revLienPaiement),
-        bénéficeConversionSpreadXAF: Math.round(revConversionSpread),
-        bénéficeCartesVirtuellesXAF: Math.round(revCartesVirtuelles),
-        bénéficeDepotsRetraitsXAF: Math.round(revDepotsRetraits)
+      analyseFluxSpecifiques: {
+        volumeCirculeLienPaiement: Math.round(volumeLienPaiementTotal),
+        nombrePaiementsSansConversion: totalPaiementsDevisesIdentiques
+      },
+      santeDuReseau: {
+        transactionsReussies: transactionsReussiesCount,
+        transactionsEchouees: transactionsEchoueesCount,
+        tauxSuccesGlobal: toutesLesTransactions.length > 0
+          ? `${((transactionsReussiesCount / toutesLesTransactions.length) * 100).toFixed(2)}%`
+          : "0%",
+        repartitionDetailsEchecs: detailsEchecs
+      },
+      monitoringUtilisateurs: {
+        actifs: utilisateursActifs,
+        suspendus: utilisateursSuspendus,
+        enAttenteAprobation: utilisateursEnAttenteAprobation
+      },
+      monitoringEpargne: {
+        sommeTotaleEpargnesEnCours: Math.round(sommeEpargnesEnCours?._sum?.montantAccumule || 0),
+        nombreEpargnantsActifs: nombreEpargnantsActifs
+      },
+      monitoringCartesVirtuelles: {
+        nombreTotalAbonnes: cartesAbonnéesCount,
+        nombreCartesActives: cartesActivesCount
+      },
+      traçabiliteRevenusDetailles: {
+        beneficeDepots: Math.round(revDepots),
+        beneficeRetraits: Math.round(revRetraits),
+        beneficePaiementInterneEtLien: Math.round(revLienPaiementP2P),
+        beneficeConversionSpread: Math.round(revConversionSpread),
+        beneficeCartesAbonnement: Math.round(revCartesVirtuellesAbonnement),
+        beneficeCartesPaiementEnLigne: Math.round(revCartesVirtuellesPaiement),
+        beneficeBlameRuptureEpargne: Math.round(revBlameEpargneStricte)
       },
       revenusParPays,
+      revenusParOperateur,
       listeAgregateursDashboard
     };
   }
 
-  // Clôture journalière vers le portefeuille de l'admin
+  /**
+   * 👤 GESTION DES UTILISATEURS (ACTIONS DIRECTES ADMIN)
+   */
+  async modifierStatutUtilisateur(utilisateurId, nouveauStatut) {
+    return await prisma.utilisateur.update({
+      where: { id: utilisateurId },
+      data: { statutCompte: nouveauStatut }
+    });
+  }
+
+  async consularProfilEtSoldeUtilisateur(utilisateurId) {
+    return await prisma.utilisateur.findUnique({
+      where: { id: utilisateurId },
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        email: true,
+        telephone: true,
+        statutCompte: true,
+        statutKYC: true,
+        role: true,
+        pays: true,
+        dateCreation: true,
+        portefeuille: {
+          select: {
+            id: true,
+            solde: true,
+            devise: true,
+            statut: true
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * 📈 DÉCISION DE COMMISSIONS EN DIRECT
+   */
+  async configurerFraisSysteme(cleParametre, valeurParametre) {
+    return await adminRepository.sauvegarderConfig(
+      cleParametre,
+      valeurParametre,
+      "FINANCIER",
+      "Ajustement dynamique de commission via Dashboard Admin"
+    );
+  }
+
+  // Consulter toutes les commissions
+  async listerCommissions() {
+    const configs = await adminRepository.obtenirConfigurationsFinancieres();
+    // On transforme le tableau en un objet clé/valeur propre et facile à manipuler pour le Frontend
+    const commissions = {};
+    configs.forEach(cfg => {
+      commissions[cfg.cle] = {
+        valeur: parseFloat(cfg.valeur),
+        description: cfg.description
+      };
+    });
+    return commissions;
+  }
+
+  // Modifier plusieurs commissions d'un coup
+  async mettreAJourCommissions(listeCommissions) {
+    // listeCommissions est un objet contenant { FRAIS_DEPOT_PCT: 1.8, FRAIS_RETRAIT_PCT: 1.2, ... }
+    const promesses = Object.entries(listeCommissions).map(([cle, valeur]) => {
+      if (valeur === undefined || valeur === null) return null;
+      
+      return adminRepository.sauvegarderConfig(
+        cle.toUpperCase().trim(),
+        valeur,
+        "FINANCIER",
+        undefined // Le "update" d'upsert n'écrasera pas la description existante
+      );
+    });
+
+    await Promise.all(promesses.filter(p => p !== null));
+    return await this.listerCommissions(); // On renvoie la liste mise à jour
+  }
+
   async executerClotureJournaliere() {
     const rapport = await this.genererRapportDashboard();
-    const montantAverser = rapport.cards.montantGlobalBeneficeNetXAF;
+    const montantAverser = rapport.cardsGlobales.montantGlobalBeneficeNet;
 
     if (montantAverser <= 0) {
       throw new Error("Le solde des bénéfices nets à reverser est à 0.");
@@ -118,15 +313,13 @@ class AdminService {
     }
 
     const dateJour = new Date().toLocaleDateString('fr-FR');
-    const logMsg = `Clôture manuelle UniPay du ${dateJour} - Versement des bénéfices cumulés`;
+    const logMsg = `Clôture automatique du ${dateJour} - Versement des bénéfices nets UniPay`;
 
     return await adminRepository.executerVirementGains(portefeuilleAdmin.id, montantAverser, logMsg);
   }
 
-  // 💡 INTÉGRATION DU COFFRE-FORT DE SECOURS (Ton code commenté fiabilisé)
   async recupererFondsDuCoffre(adminId) {
     return await prisma.$transaction(async (tx) => {
-      // 1. Récupérer l'état actuel du coffre-fort d'attente
       const coffre = await tx.coffreUniPay.findUnique({
         where: { id: 'global_vault' }
       });
@@ -137,22 +330,21 @@ class AdminService {
 
       const totalARecuperer = parseFloat(coffre.cumulGainsXAF);
 
-      // 2. Localiser et créditer le portefeuille de l'Admin connecté
       const walletAdmin = await tx.portefeuille.findFirst({
         where: { utilisateurId: adminId }
       });
 
-      if (!walletAdmin) {
-        throw new Error("Impossible de localiser votre portefeuille admin pour le transfert.");
+      if (!walletAdmin || !walletAdmin.devise) {
+        throw new Error("Impossible de localiser votre portefeuille admin ou sa devise associée.");
       }
+
+      const deviseCompteAdmin = walletAdmin.devise; // Lecture directe et stricte de la base de données
 
       await tx.portefeuille.update({
         where: { id: walletAdmin.id },
-        data: { 
-            solde: { increment: totalARecuperer } }
+        data: { solde: { increment: totalARecuperer } }
       });
 
-      // 3. Remise à zéro complète (Reset) du coffre-fort
       await tx.coffreUniPay.update({
         where: { id: 'global_vault' },
         data: { cumulGainsXAF: 0.0000 }
@@ -160,19 +352,10 @@ class AdminService {
 
       return {
         montantRecupere: totalARecuperer,
-        devise: "XAF",
-        message: `La totalité des bénéfices orphelins (${totalARecuperer} XAF) a été transférée avec succès dans votre portefeuille.`
+        devise: deviseCompteAdmin, // 💡 Dynamisé à la place de "XAF" en dur
+        message: `La totalité des bénéfices orphelins (${totalARecuperer} ${deviseCompteAdmin}) a été reversée dans votre portefeuille.`
       };
     });
-  }
-
-  async configurerParametre(cle, valeur) {
-    return await adminRepository.sauvegarderConfig(
-        cle, 
-        valeur, 
-        "FINANCIER", 
-        "Modifié depuis le Dashboard Admin"
-    );
   }
 
   async ajouterNouvelAgregateur(data) {

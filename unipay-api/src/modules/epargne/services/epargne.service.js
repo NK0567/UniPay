@@ -1,9 +1,11 @@
 const prisma = require('../../../database/prisma');
-// const analyseFluxService = require('./analyse.service');
+const analyseFluxService = require('./analyse.service');
 
 class EpargneService {
 
-  // 📥 ALIMENTATION MANUELLE (Simple ou Intelligente)
+  /**
+   * 📥 ALIMENTATION MANUELLE OU INTELLIGENTE
+   */
   async alimenterObjectif(utilisateurId, { objectifId, montant }) {
     const montantSaisi = parseFloat(montant);
     if (isNaN(montantSaisi) || montantSaisi <= 0) throw new Error("Montant invalide.");
@@ -25,13 +27,13 @@ class EpargneService {
       const soldePrincipal = parseFloat(utilisateur.portefeuille.solde);
       if (soldePrincipal < montantSaisi) throw new Error("Solde principal insuffisant.");
 
-      // 1. Débiter le portefeuille
+      // 1. Débiter le portefeuille de l'utilisateur
       await tx.portefeuille.update({
         where: { id: utilisateur.portefeuille.id },
         data: { solde: { decrement: montantSaisi } }
       });
 
-      // 2. Traitement mathématique sécurisé des types Decimal Prisma
+      // 2. Traitement mathématique des cumuls
       const actuel = parseFloat(objectif.montantActuel);
       const cible = parseFloat(objectif.montantCible);
       const nouveauMontantActuel = actuel + montantSaisi;
@@ -46,9 +48,6 @@ class EpargneService {
         }
       });
 
-      // 4. (Optionnel) Enregistrer le mouvement d'épargne historique ici si ton modèle existe
-      // await tx.mouvementEpargne.create({ ... });
-
       return {
         succes: true,
         objectif: objectifMisAJour,
@@ -58,7 +57,9 @@ class EpargneService {
     });
   }
 
-  // 📤 RETRAIT / LIQUIDATION (Avec gestion de la discipline stricte)
+  /**
+   * 📤 RETRAIT / LIQUIDATION (Avec gestion de la discipline stricte)
+   */
   async liquiderObjectif(utilisateurId, objectifId, obligerRetrait = false) {
     return await prisma.$transaction(async (tx) => {
       const utilisateur = await tx.utilisateur.findUnique({
@@ -66,53 +67,66 @@ class EpargneService {
         include: { portefeuille: true }
       });
 
+      if (!utilisateur || !utilisateur.portefeuille) throw new Error("Utilisateur ou portefeuille introuvable.");
+
       const objectif = await tx.objectifEpargne.findFirst({
         where: { id: objectifId, portefeuilleId: utilisateur.portefeuille.id }
       });
 
-      if (!objectif || objectif.statut === "LIQUIDE") throw new Error("Cet objectif n'existe pas ou a déjà été vidé.");
+      if (!objectif || objectif.statut === "CLOTURE" || objectif.statut === "LIQUIDE") {
+        throw new Error("Cet objectif n'existe pas ou a déjà été liquidé.");
+      }
 
-      // Désormais, objectif.sousType fonctionne grâce à la mise à jour Prisma
       const estStricte = objectif.sousType === "STRICTE";
       const actuel = parseFloat(objectif.montantActuel);
       const cible = parseFloat(objectif.montantCible);
       const estIncomplet = actuel < cible;
 
       let penalite = 0;
-      let montantAFiltrer = actuel;
+      let montantARestituer = actuel;
 
-      // 🛡️ PROTOCOLE DISCIPLINE
+      // 🛡️ PROTOCOLE DISCIPLINE : Si l'épargne est stricte et non terminée
       if (estStricte && estIncomplet) {
         if (!obligerRetrait) {
-          // Ce code d'erreur sera intercepté par ton routeur pour envoyer l'alerte à l'utilisateur
-          throw new Error("PÉNALITÉ_REQUIS");
+          throw new Error("PÉNALITÉ_REQUIS"); // Intercepté par le contrôleur pour confirmation client
         }
-        // Calcul strict des 0.05% de rupture anticipée
-        penalite = montantAFiltrer * 0.0005;
-        montantAFiltrer -= penalite;
+
+        // 1. Récupérer la configuration du blâme en BD
+        const configBlame = await tx.configurationSysteme.findUnique({
+          where: { cle: "FRAIS_BLAME_EPARGNE_PCT" }
+        });
+
+        // Traité comme une valeur en pourcentage (Fallback à 5.0%)
+        const pourcentageBlame = configBlame ? parseFloat(configBlame.valeur) : 5.0;
+        
+        // 2. Calcul du montant de la pénalité retenue
+        penalite = parseFloat(((actuel * pourcentageBlame) / 100).toFixed(2));
+        montantARestituer = actuel - penalite;
+
+        console.log(`[Rupture Disciplinaire] ${pourcentageBlame}% appliqué sur ${actuel}. Retenu : ${penalite}`);
       }
 
-      // 1. Clôturer l'objectif
+      // 1. Clôturer définitivement l'objectif
       await tx.objectifEpargne.update({
         where: { id: objectif.id },
-        data: { statut: "CLOTURE" }
+        data: { statut: "CLOTURE", montantActuel: 0 }
       });
 
-      // 2. Restituer le capital disponible sur le portefeuille principal
+      // 2. Restituer le capital (Net de pénalité) sur le portefeuille principal
       await tx.portefeuille.update({
         where: { id: utilisateur.portefeuille.id },
-        data: { solde: { increment: montantAFiltrer } }
+        data: { solde: { increment: montantARestituer } }
       });
 
-      // 3. Versement de la pénalité sur le compte d'infrastructure de l'ADMIN
+      // 3. Versement de la pénalité sur le compte de la Fintech (ADMIN)
       if (penalite > 0) {
-        const admin = await tx.utilisateur.findFirst({
-          where: { role: "ADMIN" },
-          include: { portefeuille: true }
+        const adminPortefeuille = await tx.portefeuille.findFirst({
+          where: { utilisateur: { role: "ADMIN" } }
         });
-        if (admin && admin.portefeuille) {
+        
+        if (adminPortefeuille) {
           await tx.portefeuille.update({
-            where: { id: admin.portefeuille.id },
+            where: { id: adminPortefeuille.id },
             data: { solde: { increment: penalite } }
           });
         }
@@ -120,60 +134,38 @@ class EpargneService {
 
       return {
         succes: true,
-        montantRestitue: montantAFiltrer,
+        montantRestitue: montantARestituer,
         penalitePrelevee: penalite,
         devise: utilisateur.portefeuille.devise
       };
     });
   }
 
-  // 🤖 ÉPARGNE INTELLIGENTE : Configuration du Toggle d'automatisation
-
+  /**
+   * 🤖 CONFIGURATION DU TOGGLE AUTOMATIQUE SÉCURISÉ
+   */
   async basculerAutoPrelevement(utilisateurId, objectifId, activer) {
+    let donneesMiseAJour = { autoPrelevement: activer };
 
-    // Analyse intelligente des flux
-    const analyse = await analyseFluxService
-      .analyserCapaciteEpargne(utilisateurId);
+    if (activer) {
+      const analyse = await analyseFluxService.analyserCapaciteEpargne(utilisateurId);
+      donneesMiseAJour = {
+        ...donneesMiseAJour,
+        montantPrelevementAuto: analyse.montantPrelevement,
+        pourcentagePrelevement: analyse.pourcentage,
+        derniereAnalyseFlux: new Date()
+      };
+    }
 
     return await prisma.objectifEpargne.updateMany({
       where: {
         id: objectifId,
-        utilisateurId,
+        portefeuille: { utilisateurId },
         type: "INTELLIGENTE"
       },
-      data: {
-        autoPrelevement: activer,
-        montantPrelevementAuto: analyse.montantPrelevement,
-        pourcentagePrelevement: analyse.pourcentage,
-        derniereAnalyseFlux: new Date()
-      }
+      data: donneesMiseAJour
     });
   }
 }
 
 module.exports = new EpargneService();
-
-
-
-
-// 🤖 ÉPARGNE INTELLIGENTE : Configuration du Toggle d'automatisation
-
-  // async basculerAutoPrelevement(utilisateurId, objectifId, activer) {
-
-  //   // Analyse intelligente des flux
-  //   const analyse = await analyseFluxService.analyserCapaciteEpargne(utilisateurId);
-
-  //   return await prisma.objectifEpargne.updateMany({
-  //     where: {
-  //       id: objectifId,
-  //       utilisateurId,
-  //       type: "INTELLIGENTE"
-  //     },
-  //     data: {
-  //       autoPrelevement: activer,
-  //       montantPrelevementAuto: analyse.montantPrelevement,
-  //       pourcentagePrelevement: analyse.pourcentage,
-  //       derniereAnalyseFlux: new Date()
-  //     }
-  //   });
-  // }

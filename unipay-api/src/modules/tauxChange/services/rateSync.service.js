@@ -1,5 +1,6 @@
 // const tauxChangeRepository = require("../repositories/tauxChange.repository");
-// const countrySercice = require("./country.sercice");
+// 🔧 REFACTORING: Import corrigé (typo sercice → service)
+// const countryService = require("./country.service");
 // const exchangeRateService = require("./exchangeRate.service");
 
 class RateSyncService{

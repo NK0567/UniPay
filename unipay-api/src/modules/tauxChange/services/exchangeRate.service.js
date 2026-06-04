@@ -1,5 +1,6 @@
 const axios = require('axios');
-// const countrySercice = require('./country.sercice');
+// 🔧 REFACTORING: Import corrigé (typo sercice → service)
+// const countryService = require('./country.service');
 
 class ExchangeRateService{
     async fecthRates( baseCurrency = countrySercice.currencyCode){

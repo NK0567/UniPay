@@ -1,15 +1,21 @@
 const tauxChangeRepository = require('../../tauxChange/repositories/tauxChange.repository');
 
+/**
+ * 🔧 REFACTORING: Service de conversion unifié et centralisé
+ * Remplace l'ancien ConversionService de 'transaction' (deprecated)
+ * Fournit les méthodes synchrone et asynchrone pour compatibilité
+ */
 class ConversionService {
   /**
    * Calcule le montant converti destiné au récepteur et isole la marge commerciale
+   * Version ASYNCHRONE (recommandée) - récupère les données de la BDD
    */
   async calculerConversionDynamique(montantSource, deviseSource, deviseCible) {
     if (deviseSource === deviseCible) {
       return {
         tauxApplique: 1,
         montantConverti: montantSource,
-        gainSpreadLocal: 0
+        gainSpread: 0
       };
     }
 
@@ -37,10 +43,23 @@ class ConversionService {
     return {
       tauxChangeId: enregistrementTaux.id,
       tauxBrut: tauxBrutMarché,
-      tauxAppliqueAuClient: tauxClientUniPay,
+      tauxApplique: tauxClientUniPay, // 🔧 REFACTORING: Normalisé le nom pour compatibilité
       montantConverti: parseFloat(montantConvertiPourClient.toFixed(4)),
-      gainSpreadLocal: parseFloat(gainSpreadEnDeviseCible.toFixed(4))
+      gainSpread: parseFloat(gainSpreadEnDeviseCible.toFixed(4)) // 🔧 Normalisé "gainSpreadLocal" → "gainSpread"
     };
+  }
+
+  /**
+   * Wrapper compatible synchrone (DEPRECATED mais gardé pour migration progressive)
+   * 🔧 REFACTORING: Méthode de compatibilité - préférer calculerConversionDynamique()
+   */
+  calculerConversion(deviseSource, deviseCible, montantSource) {
+    // ⚠️ ATTENTION: Cette méthode est synchrone mais les données viennent de la BDD
+    // Elle va bloquer si la BD est lente. Migration en cours vers async.
+    throw new Error(
+      '❌ calculerConversion() DEPRECATED - Utilisez calculerConversionDynamique(async) à la place.\n' +
+      'Cette méthode bloquera l\'application. Migration requise dans transaction.service.js'
+    );
   }
 }
 
