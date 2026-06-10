@@ -1,0 +1,183 @@
+import 'package:flutter/material.dart';
+
+class PaySuccessPage extends StatelessWidget {
+  final String amountUSD;
+  final String amountXAF;
+
+  const PaySuccessPage({
+    super.key,
+    required this.amountUSD,
+    required this.amountXAF,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Génération d'une référence de transaction dynamique propre à UniPay
+    final String transactionReference = 'TXN${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(),
+
+              // 🟢 Icône Succès Animée/Stylisée
+              Container(
+                height: 100,
+                width: 100,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE6F4EA), // Vert très clair
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  color: Color(0xFF10B981), // Vert UniPay Succès
+                  size: 64,
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // 📝 Titre Principal
+              const Text(
+                'Envoi réussi !',
+                style: TextStyle(
+                  color: Color(0xFF1E293B),
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // ℹ️ Message contextuel dynamique
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text(
+                  'Votre paiement par lien a été traité et converti instantanément par le moteur de change UniPay.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: const Color(0xFF64748B).withOpacity(0.9), fontSize: 14, height: 1.4),
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // 📊 Ticket récapitulatif final (Comptabilité claire)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F9FD),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    _buildTicketRow('Montant débité', '$amountUSD USD'),
+                    const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                    _buildTicketRow('Montant reçu (Paul Yao)', '$amountXAF XAF', isHighlighted: true),
+                    const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                    _buildTicketRow('Référence', transactionReference, isCopyable: true, context: context),
+                    const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                    _buildTicketRow('Statut', 'Complété', statusGreen: true),
+                  ],
+                ),
+              ),
+
+              const Spacer(),
+
+              // 📄 Bouton : Voir / Partager le reçu
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Téléchargement du reçu PDF...'),
+                        backgroundColor: Color(0xFF4E4AF2),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.receipt_long_rounded, color: Color(0xFF4E4AF2)),
+                  label: const Text(
+                    'Voir le reçu',
+                    style: TextStyle(color: Color(0xFF4E4AF2), fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF4E4AF2), width: 1.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // 🏠 Bouton : Retour à l'accueil (Reset de la navigation)
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Nettoie l'historique des écrans du tunnel et ramène au Dashboard
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4E4AF2),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Retour à l\'accueil',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTicketRow(
+    String label, 
+    String value, {
+    bool isHighlighted = false, 
+    bool isCopyable = false, 
+    bool statusGreen = false,
+    BuildContext? context,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: Color(0xFF64748B), fontSize: 14)),
+        Row(
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                color: statusGreen 
+                    ? const Color(0xFF10B981) 
+                    : (isHighlighted ? const Color(0xFF4E4AF2) : const Color(0xFF1E293B)),
+                fontWeight: (isHighlighted || statusGreen) ? FontWeight.bold : FontWeight.w600,
+                fontSize: isHighlighted ? 16 : 14,
+              ),
+            ),
+            if (isCopyable && context != null) ...[
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Référence copiée !'), duration: Duration(seconds: 1)),
+                  );
+                },
+                child: const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF4E4AF2)),
+              )
+            ]
+          ],
+        ),
+      ],
+    );
+  }
+}
