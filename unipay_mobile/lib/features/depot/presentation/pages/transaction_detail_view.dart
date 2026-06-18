@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
 
 class TransactionDetailView extends StatelessWidget {
   const TransactionDetailView({super.key});
@@ -15,17 +16,21 @@ class TransactionDetailView extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: darkTextColor),
+          icon: Icon(Icons.close, color: darkTextColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Reçu de transaction',
-          style: TextStyle(color: darkTextColor, fontWeight: FontWeight.bold, fontSize: 16),
+          style: TextStyle(
+            color: darkTextColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
         ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.share_outlined, color: darkTextColor),
+            icon: Icon(Icons.share_outlined, color: darkTextColor),
             onPressed: () {
               // Logique de partage (WhatsApp, PDF, etc.)
             },
@@ -36,7 +41,6 @@ class TransactionDetailView extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0),
         child: Column(
           children: [
-            
             // 🎫 DESIGN DU TICKET (REÇU COUPÉ)
             Container(
               width: double.infinity,
@@ -45,16 +49,16 @@ class TransactionDetailView extends StatelessWidget {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
+                    color: context.textColor.withOpacity(0.03),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
-                  )
+                  ),
                 ],
               ),
               child: Column(
                 children: [
                   const SizedBox(height: 24),
-                  
+
                   // En-tête : Icône Succès dynamique
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -62,23 +66,35 @@ class TransactionDetailView extends StatelessWidget {
                       color: successColor.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.check_circle, color: successColor, size: 40),
+                    child: Icon(
+                      Icons.check_circle,
+                      color: successColor,
+                      size: 40,
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   const Text(
                     'Transfert Réussi',
-                    style: TextStyle(color: successColor, fontWeight: FontWeight.bold, fontSize: 16),
+                    style: TextStyle(
+                      color: successColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  
+
                   // Montant Principal
                   const Text(
                     '- 25 000 FCFA',
-                    style: TextStyle(color: darkTextColor, fontWeight: FontWeight.w900, fontSize: 28),
+                    style: TextStyle(
+                      color: darkTextColor,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 28,
+                    ),
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Ligne pointillée de découpe du reçu
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -87,7 +103,9 @@ class TransactionDetailView extends StatelessWidget {
                         30,
                         (index) => Expanded(
                           child: Container(
-                            color: index % 2 == 0 ? Colors.transparent : Colors.grey.shade200,
+                            color: index % 2 == 0
+                                ? Colors.transparent
+                                : Colors.grey.shade200,
                             height: 2,
                           ),
                         ),
@@ -101,21 +119,52 @@ class TransactionDetailView extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 24.0),
                     child: Column(
                       children: [
-                        _buildDetailRow('Destinataire', 'Paul Yao', isBoldValue: true),
-                        _buildDetailRow('Numéro de téléphone', '+237 677 88 99 00'),
-                        _buildDetailRow('Opérateur', 'MTN Mobile Money'),
-                        _buildDetailRow('ID Transaction', 'TXN-20260610-98745', isCopyable: true, context: context),
-                        _buildDetailRow('Date & Heure', '10 Juin 2026 à 10:30'),
-                        const Divider(height: 32, thickness: 1, color: Color(0xFFF1F5F9)),
-                        _buildDetailRow('Montant envoyé', '25 000 FCFA'),
-                        _buildDetailRow('Frais de service', '0 FCFA'),
+                        _buildDetailRow(
+                          context,
+                          'Destinataire',
+                          'Paul Jean',
+                          isBoldValue: true,
+                        ),
+                        _buildDetailRow(
+                          context,
+                          'Numéro de téléphone',
+                          '+237 677 88 99 00',
+                        ),
+                        _buildDetailRow(
+                          context,
+                          'Opérateur',
+                          'MTN Mobile Money',
+                        ),
+                        _buildDetailRow(
+                          context,
+                          'ID Transaction',
+                          'TXN-20260610-98745',
+                          isCopyable: true,
+                        ),
+                        _buildDetailRow(
+                          context,
+                          'Date & Heure',
+                          '10 Juin 2026 à 10:30',
+                        ),
+                        const Divider(
+                          height: 32,
+                          thickness: 1,
+                          color: Color(0xFFF1F5F9),
+                        ),
+                        _buildDetailRow(
+                          context,
+                          'Montant envoyé',
+                          '25 000 FCFA',
+                        ),
+                        _buildDetailRow(context, 'Frais de service', '0 FCFA'),
                         const SizedBox(height: 8),
                         _buildDetailRow(
-                          'Total Débité', 
-                          '25 000 FCFA', 
-                          valueColor: primaryColor, 
+                          context,
+                          'Total Débité',
+                          '25 000 FCFA',
+                          valueColor: primaryColor,
                           isBoldValue: true,
-                          fontSize: 16
+                          fontSize: 16,
                         ),
                       ],
                     ),
@@ -124,7 +173,7 @@ class TransactionDetailView extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 32),
 
             // 🛠️ ACTIONS EN BAS DE PAGE (Figure 31)
@@ -134,31 +183,49 @@ class TransactionDetailView extends StatelessWidget {
                 onPressed: () {
                   // Logique pour télécharger en PDF
                 },
-                icon: const Icon(Icons.download_rounded, color: Colors.white, size: 20),
-                label: const Text('Télécharger le reçu (PDF)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                icon: Icon(
+                  Icons.download_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                label: const Text(
+                  'Télécharger le reçu (PDF)',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   elevation: 0,
                 ),
               ),
             ),
             const SizedBox(height: 12),
-            
+
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                onPressed: () =>
+                    Navigator.popUntil(context, (route) => route.isFirst),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   side: BorderSide(color: Colors.grey.shade200),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  backgroundColor: context.bgColor,
                 ),
                 child: const Text(
                   'Retour à l\'accueil',
-                  style: TextStyle(color: darkTextColor, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: darkTextColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -171,12 +238,12 @@ class TransactionDetailView extends StatelessWidget {
 
   // Widget utilitaire pour aligner proprement les paires clé/valeur du ticket
   Widget _buildDetailRow(
-    String label, 
+    BuildContext context,
+    String label,
     String value, {
-    bool isBoldValue = false, 
+    bool isBoldValue = false,
     Color valueColor = const Color(0xFF0F172A),
     bool isCopyable = false,
-    BuildContext? context,
     double fontSize = 14,
   }) {
     return Padding(
@@ -186,16 +253,20 @@ class TransactionDetailView extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(color: Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              color: context.secondaryTextColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           Row(
             children: [
               Text(
                 value,
                 style: TextStyle(
-                  color: valueColor, 
-                  fontSize: fontSize, 
-                  fontWeight: isBoldValue ? FontWeight.bold : FontWeight.normal
+                  color: valueColor,
+                  fontSize: fontSize,
+                  fontWeight: isBoldValue ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
               if (isCopyable && context != null) ...[
@@ -204,12 +275,19 @@ class TransactionDetailView extends StatelessWidget {
                   onTap: () {
                     // Petite action de copie rapide pour l'ID transaction
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('ID copié !'), duration: Duration(seconds: 1)),
+                      const SnackBar(
+                        content: Text('ID copié !'),
+                        duration: Duration(seconds: 1),
+                      ),
                     );
                   },
-                  child: const Icon(Icons.copy_rounded, size: 14, color: Color(0xFF3B36DB)),
-                )
-              ]
+                  child: Icon(
+                    Icons.copy_rounded,
+                    size: 14,
+                    color: Color(0xFF3B36DB),
+                  ),
+                ),
+              ],
             ],
           ),
         ],

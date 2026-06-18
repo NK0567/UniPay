@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
 
 class ProfileView extends StatelessWidget {
   const ProfileView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const darkTextColor = Color(0xFF1E293B); // Slate 800
-    const subtitleColor = Color(0xFF64748B); // Slate 500
-    const primaryColor = Color(0xFF4E4AF2);   // Violet UniPay
+    final darkTextColor = context.textColor; // Slate 800
+    final subtitleColor = context.secondaryTextColor; // Slate 500
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE), // Fond clair identique aux maquettes
@@ -16,7 +16,7 @@ class ProfileView extends StatelessWidget {
           children: [
             const SizedBox(height: 32),
 
-            // 👤 SECTION AVATAR & NOM (Identique à la maquette)
+            // 👤 SECTION AVATAR & NOM
             Center(
               child: Column(
                 children: [
@@ -28,23 +28,22 @@ class ProfileView extends StatelessWidget {
                           border: Border.all(color: Colors.white, width: 4),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: context.textColor.withOpacity(0.05),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        child: const CircleAvatar(
+                        child: CircleAvatar(
                           radius: 50,
-                          backgroundColor: Color(0xFFE2E8F0),
-                          // Icône ou image par défaut simulant la photo de Jean Dupont
-                          child: Icon(Icons.person, size: 60, color: Color(0xFF94A3B8)),
+                          backgroundColor: context.borderColor,
+                          child: const Icon(Icons.person, size: 60, color: Color(0xFF94A3B8)),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'Jean Dupont',
                     style: TextStyle(
                       fontSize: 22,
@@ -53,7 +52,7 @@ class ProfileView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     '+237 6 99 12 34 56',
                     style: TextStyle(
                       fontSize: 15,
@@ -67,7 +66,7 @@ class ProfileView extends StatelessWidget {
             
             const SizedBox(height: 32),
 
-            // ⚙️ LISTE DES OPTIONS (Reproduction exacte de la liste de ta maquette)
+            // ⚙️ LISTE DES OPTIONS (Résolution de l'exception de Splash/Contraste)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Container(
@@ -76,58 +75,71 @@ class ProfileView extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
+                      color: context.textColor.withOpacity(0.02),
                       blurRadius: 15,
                       offset: const Offset(0, 5),
                     ),
                   ],
                 ),
-                child: Column(
-                  children: [
-                    _buildProfileTile(
-                      icon: Icons.person_outline_rounded,
-                      title: 'Informations personnelles',
-                      onTap: () {},
-                    ),
-                    _buildDivider(),
-                    _buildProfileTile(
-                      icon: Icons.security_outlined,
-                      title: 'Sécurité et accès',
-                      onTap: () {},
-                    ),
-                    _buildDivider(),
-                    _buildProfileTile(
-                      icon: Icons.notifications_none_rounded,
-                      title: 'Paramètres de notification',
-                      onTap: () {},
-                    ),
-                    _buildDivider(),
-                    _buildProfileTile(
-                      icon: Icons.credit_card_outlined,
-                      title: 'Méthodes de paiement',
-                      onTap: () {},
-                    ),
-                    _buildDivider(),
-                    _buildProfileTile(
-                      icon: Icons.devices_rounded,
-                      title: 'Appareils connectés',
-                      onTap: () {},
-                    ),
-                    _buildDivider(),
-                    _buildProfileTile(
-                      icon: Icons.g_translate_rounded,
-                      title: 'Langue',
-                      trailingText: 'Français',
-                      onTap: () {},
-                    ),
-                  ],
+                // Le Theme local force des effets de clics contrastés pour éviter l'exception
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    splashColor: const Color(0xFF4E4AF2).withOpacity(0.06),
+                    highlightColor: const Color(0xFF4E4AF2).withOpacity(0.03),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildProfileTile(
+                        context: context,
+                        icon: Icons.person_outline_rounded,
+                        title: 'Informations personnelles',
+                        onTap: () {},
+                      ),
+                      _buildDivider(),
+                      _buildProfileTile(
+                        context: context,
+                        icon: Icons.security_outlined,
+                        title: 'Sécurité et accès',
+                        onTap: () {},
+                      ),
+                      _buildDivider(),
+                      _buildProfileTile(
+                        context: context,
+                        icon: Icons.notifications_none_rounded,
+                        title: 'Paramètres de notification',
+                        onTap: () {},
+                      ),
+                      _buildDivider(),
+                      _buildProfileTile(
+                        context: context,
+                        icon: Icons.credit_card_outlined,
+                        title: 'Méthodes de paiement',
+                        onTap: () {},
+                      ),
+                      _buildDivider(),
+                      _buildProfileTile(
+                        context: context,
+                        icon: Icons.devices_rounded,
+                        title: 'Appareils connectés',
+                        onTap: () {},
+                      ),
+                      _buildDivider(),
+                      _buildProfileTile(
+                        context: context,
+                        icon: Icons.g_translate_rounded,
+                        title: 'Langue',
+                        trailingText: 'Français',
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
 
             const SizedBox(height: 40),
 
-            // 🛑 BOUTON DÉCONNEXION (Texte rouge centré en bas)
+            // 🛑 BOUTON DÉCONNEXION
             TextButton(
               onPressed: () {
                 // Logique de déconnexion
@@ -154,6 +166,7 @@ class ProfileView extends StatelessWidget {
 
   // Widget utilitaire pour créer une ligne d'option propre
   Widget _buildProfileTile({
+    required BuildContext context,
     required IconData icon,
     required String title,
     String? trailingText,
@@ -161,20 +174,23 @@ class ProfileView extends StatelessWidget {
   }) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      // Adapte les vagues de clic aux bords arrondis du conteneur parent
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9), // Fond léger derrière l'icône
+          color: const Color(0xFFF1F5F9), 
           borderRadius: BorderRadius.circular(12),
         ),
+        // Le mot-clé const a été retiré d'ici car 'icon' est dynamique
         child: Icon(icon, color: const Color(0xFF4E4AF2), size: 22),
       ),
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w600,
-          color: Color(0xFF1E293B),
+          color: context.textColor,
         ),
       ),
       trailing: Row(
@@ -183,9 +199,9 @@ class ProfileView extends StatelessWidget {
           if (trailingText != null)
             Text(
               trailingText,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: Color(0xFF64748B),
+                color: context.secondaryTextColor,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -201,7 +217,6 @@ class ProfileView extends StatelessWidget {
     );
   }
 
-  // Séparateur discret entre les options
   Widget _buildDivider() {
     return const Padding(
       padding: EdgeInsets.symmetric(horizontal: 20.0),

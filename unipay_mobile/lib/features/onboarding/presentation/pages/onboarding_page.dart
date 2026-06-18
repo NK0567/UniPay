@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../../app/colors.dart';
-import '../../../auth/presentation/pages/login_page.dart'; // Import à adapter selon tes besoins futurs
+import '../../../../app/theme_extensions.dart';
+import '../../../auth/presentation/pages/login_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
@@ -10,16 +11,14 @@ class OnboardingPage extends StatefulWidget {
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
-  final PageController _pageController = PageController();
+  late final PageController _pageController;
   int _currentPage = 0;
 
-  // Données des 3 diapositives (Textes issus exactement de tes images)
   final List<Map<String, String>> _onboardingData = [
     {
       'title': 'Envoyez de l\'argent\ninstantanément',
-      'subtitle': 'Transférez gratuitement\nvers vos proches.',
-      'image':
-          'assets/illustrations/onboarding_1.png', // Tu pourras y lier tes images ou des icônes temporaires
+      'subtitle': 'Transférez sans frontière\nvers vos proches.',
+      'image': 'assets/illustrations/onboarding_1.png', 
     },
     {
       'title': 'Payez facilement\nen ligne ou en magasin',
@@ -28,29 +27,46 @@ class _OnboardingPageState extends State<OnboardingPage> {
     },
     {
       'title': 'Épargnez\nintelligemment',
-      'subtitle':
-          'Atteignez vos objectifs grâce\nà nos suggestions personnalisées.',
+      'subtitle': 'Atteignez vos objectifs grâce\nà nos suggestions personnalisées.',
       'image': 'assets/illustrations/onboarding_3.png',
     },
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 0);
+    
+    _pageController.addListener(() {
+      final next = _pageController.page?.round() ?? 0;
+      if (_currentPage != next) {
+        setState(() {
+          _currentPage = next;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isLastPage = _currentPage >= _onboardingData.length - 1;
+
     return Scaffold(
-      backgroundColor: Colors.white, // Fond blanc pur comme sur le cliché
+      backgroundColor: context.bgColor,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            // 📖 Le Carrousel de pages
-            Expanded(
-              flex: 5,
+            // 1. Le Carrousel de pages
+            Positioned.fill(
+              bottom: 100, 
               child: PageView.builder(
                 controller: _pageController,
-                onPageChanged: (value) {
-                  setState(() {
-                    _currentPage = value;
-                  });
-                },
                 itemCount: _onboardingData.length,
                 itemBuilder: (context, index) => _buildPageContent(
                   title: _onboardingData[index]['title']!,
@@ -60,35 +76,35 @@ class _OnboardingPageState extends State<OnboardingPage> {
               ),
             ),
 
-            // 🎛️ Barre du bas : Indicateurs de points + Bouton d'action
-            Expanded(
-              flex: 1,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // 1. Les petits points (Page Indicators)
-                    Row(
-                      children: List.generate(
-                        _onboardingData.length,
-                        (index) => _buildDot(index: index),
-                      ),
+            // 2. La Barre du bas positionnée de manière absolue
+            Positioned(
+              left: 24,
+              right: 24,
+              bottom: 24,
+              height: 60, 
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Les points indicateurs
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(
+                      _onboardingData.length,
+                      (index) => _buildDot(index: index),
                     ),
+                  ),
 
-                    // 2. Le bouton dynamique (Suivant ou Commencer)
-                    _currentPage == _onboardingData.length - 1
-                        ? ElevatedButton(
+                  // Le bouton d'action corrigé avec une largeur stricte
+                  isLastPage
+                      ? SizedBox(
+                          width: 140, // 🛠️ FIXE LA LARGEUR ICI POUR EMPÊCHER L'INFINI
+                          height: 48,
+                          child: ElevatedButton(
                             onPressed: _navigateToLogin,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(
-                                0xFF4E4AF2,
-                              ), // Violet UniPay
+                              backgroundColor: context.primaryColor,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 32,
-                                vertical: 16,
-                              ),
+                              padding: EdgeInsets.zero, // Géré par la taille du SizedBox parent
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -96,47 +112,51 @@ class _OnboardingPageState extends State<OnboardingPage> {
                             ),
                             child: const Text(
                               'Commencer',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                             ),
-                          )
-                        : TextButton(
+                          ),
+                        )
+                      : SizedBox(
+                          height: 48,
+                          child: TextButton(
                             onPressed: () {
                               _pageController.nextPage(
                                 duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeIn,
+                                curve: Curves.easeInOut,
                               );
                             },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
                             child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Text(
                                   'Suivant',
                                   style: TextStyle(
                                     color: Color(0xFF4E4AF2),
-                                    fontSize: 16,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Container(
                                   padding: const EdgeInsets.all(6),
-                                  decoration: const BoxDecoration(
+                                  decoration: BoxDecoration(
                                     color: Color(0xFF4E4AF2),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.arrow_forward_rounded,
                                     color: Colors.white,
-                                    size: 16,
+                                    size: 14,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                  ],
-                ),
+                        ),
+                ],
               ),
             ),
           ],
@@ -145,94 +165,95 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 
-  // Structure interne de chaque slide
   Widget _buildPageContent({
     required String title,
     required String subtitle,
     required int index,
   }) {
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // 🎨 Zone d'image / Illustration
           Expanded(
             child: Container(
-              margin: const EdgeInsets.all(16),
+              margin: const EdgeInsets.symmetric(vertical: 24),
               decoration: BoxDecoration(
-                color: const Color(
-                  0xFFF8F9FD,
-                ), // Couleur de fond douce pour l'image
+                color: context.surfaceColor,
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: Center(
-                // Simulation visuelle de l'illustration en attendant tes fichiers assets
-                child: Icon(
-                  index == 0
-                      ? Icons.send_to_mobile_rounded
-                      : index == 1
-                      ? Icons.credit_card_rounded
-                      : Icons.savings_rounded,
-                  size: 100,
-                  color: const Color(0xFF4E4AF2),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.asset(
+                  _onboardingData[index]['image']!,
+                  fit: BoxFit.contain,
+                  cacheWidth: 400,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Center(
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        size: 64,
+                        color: context.secondaryTextColor,
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 40),
-
-          // 🏷️ Titre principal
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF1E293B), // Texte sombre pour l'écran clair
+            style: TextStyle(
+              color: context.textColor,
               fontSize: 24,
               fontWeight: FontWeight.bold,
               height: 1.3,
             ),
           ),
-          const SizedBox(height: 16),
-
-          // 📜 Descriptif secondaire
+          const SizedBox(height: 12),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF64748B),
-              fontSize: 16,
-              height: 1.5,
+            style: TextStyle(
+              color: context.secondaryTextColor,
+              fontSize: 15,
+              height: 1.4,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
 
-  // Widget de dessin des trois points indicateurs
   Widget _buildDot({required int index}) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.only(right: 8),
       height: 8,
-      width: _currentPage == index
-          ? 24
-          : 8, // Effet d'étirement sur le point actif
+      width: _currentPage == index ? 24 : 8,
       decoration: BoxDecoration(
         color: _currentPage == index
-            ? const Color(0xFF4E4AF2)
-            : const Color(0xFFE2E8F0),
+            ? context.primaryColor
+            : context.borderColor,
         borderRadius: BorderRadius.circular(4),
       ),
     );
   }
 
-  // Réactive le code à la fin de onboarding_page.dart :
-  void _navigateToLogin() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-    );
+  void _navigateToLogin() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('onboarding_seen', true);
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
+    } catch (e) {
+      debugPrint("❌ Erreur SharedPreferences : $e");
+    }
   }
 }

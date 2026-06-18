@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
 import 'DepositDetailsScreen.dart';
 
 class DepositMethodScreen extends StatelessWidget {
@@ -33,17 +34,17 @@ class DepositMethodScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.bgColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back, color: context.textColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Déposer de l\'argent',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(color: context.textColor, fontWeight: FontWeight.bold),
         ),
       ),
       body: Padding(
@@ -74,9 +75,9 @@ class DepositMethodScreen extends StatelessWidget {
                       ),
                       title: Text(
                         method['title'] as String,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                      trailing: Icon(Icons.chevron_right, color: Colors.grey),
                       onTap: () {
                         if (index == 0) {
                           // Si MTN MoMo est sélectionné, on passe à l'écran de détails

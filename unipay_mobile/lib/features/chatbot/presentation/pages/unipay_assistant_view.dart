@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
 
 class UniPayAssistantView extends StatefulWidget {
   const UniPayAssistantView({super.key});
@@ -42,9 +43,9 @@ class _UniPayAssistantViewState extends State<UniPayAssistantView> {
   @override
   Widget build(BuildContext context) {
     const chatDarkBg = Color(0xFF0F172A); // Fond bleu nuit/sombre de la maquette
-    const botBubbleColor = Color(0xFF1E293B); // Bulles du bot
+    final botBubbleColor = context.textColor; // Bulles du bot
     const userBubbleColor = Color(0xFF2563EB); // Bulles bleues de l'utilisateur
-    const inputBgColor = Color(0xFF1E293B);
+    final inputBgColor = context.textColor;
 
     return Scaffold(
       backgroundColor: chatDarkBg,
@@ -52,7 +53,7 @@ class _UniPayAssistantViewState extends State<UniPayAssistantView> {
         backgroundColor: chatDarkBg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
@@ -62,7 +63,7 @@ class _UniPayAssistantViewState extends State<UniPayAssistantView> {
                 CircleAvatar(
                   backgroundColor: Colors.blue.shade100,
                   radius: 18,
-                  child: const Icon(Icons.smart_toy_rounded, color: Color(0xFF3B36DB), size: 20),
+                  child: Icon(Icons.smart_toy_rounded, color: Color(0xFF3B36DB), size: 20),
                 ),
                 Positioned(
                   right: 0,
@@ -97,11 +98,11 @@ class _UniPayAssistantViewState extends State<UniPayAssistantView> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white70, size: 20),
+            icon: Icon(Icons.chat_bubble_outline_rounded, color: Colors.white70, size: 20),
             onPressed: () {},
           ),
           IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white70),
+            icon: Icon(Icons.more_vert, color: Colors.white70),
             onPressed: () {},
           ),
         ],
@@ -127,7 +128,7 @@ class _UniPayAssistantViewState extends State<UniPayAssistantView> {
                         CircleAvatar(
                           backgroundColor: botBubbleColor,
                           radius: 14,
-                          child: const Icon(Icons.smart_toy_outlined, color: Colors.blue, size: 14),
+                          child: Icon(Icons.smart_toy_outlined, color: Colors.blue, size: 14),
                         ),
                         const SizedBox(width: 8),
                       ],
@@ -148,14 +149,14 @@ class _UniPayAssistantViewState extends State<UniPayAssistantView> {
                             children: [
                               Text(
                                 msg["text"],
-                                style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
+                                style: TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
                               ),
                               const SizedBox(height: 6),
                               Align(
                                 alignment: Alignment.bottomRight,
                                 child: Text(
                                   msg["time"],
-                                  style: const TextStyle(color: Colors.white38, fontSize: 10),
+                                  style: TextStyle(color: Colors.white38, fontSize: 10),
                                 ),
                               ),
                             ],
@@ -183,8 +184,8 @@ class _UniPayAssistantViewState extends State<UniPayAssistantView> {
                     ),
                     child: TextField(
                       controller: _messageController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
+                      style: TextStyle(color: Color(0xFF041938)),
+                      decoration: InputDecoration(
                         hintText: "Écrire un message...",
                         hintStyle: TextStyle(color: Colors.white38, fontSize: 14),
                         border: InputBorder.none,
@@ -210,11 +211,11 @@ class _UniPayAssistantViewState extends State<UniPayAssistantView> {
                   },
                   child: Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: Color(0xFF2563EB),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                    child: Icon(Icons.send_rounded, color: Colors.white, size: 20),
                   ),
                 ),
               ],

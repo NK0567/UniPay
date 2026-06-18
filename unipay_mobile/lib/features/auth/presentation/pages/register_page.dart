@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
 import 'login_page.dart';
-import 'otp_page.dart'; // 1. Importation de la page OTP ajoutée ici
+import 'otp_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -12,7 +13,6 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   
-  // Contrôleurs pour récupérer les saisies
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -22,27 +22,24 @@ class _RegisterPageState extends State<RegisterPage> {
 
   void _submitRegister() {
     if (_formKey.currentState!.validate()) {
-      // 🧠 Extraction et séparation du Nom et Prénom
       String fullName = _fullNameController.text.trim();
       List<String> nameParts = fullName.split(' ');
       
       String prenom = nameParts.first;
-      // Si l'utilisateur a plusieurs prénoms/noms, on rassemble le reste pour le champ "nom"
       String nom = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
-      // 📦 Voici le payload JSON exact prêt pour ton API Node.js
+      // Payload prêt pour ton API Node.js plus tard
       final registerPayload = {
-        "nom": nom.isNotEmpty ? nom : prenom, // Fallback si un seul nom est saisi
+        "nom": nom.isNotEmpty ? nom : prenom,
         "prenom": prenom,
         "telephone": _phoneController.text.trim(),
         "email": _emailController.text.trim(),
         "motDePasse": _passwordController.text
       };
 
-      // TODO: Appeler ton AuthRepository / Dio Client ici
-      debugPrint("Payload envoyé à l'API : $registerPayload");
+      debugPrint("[OFFLINE TEST] Payload Inscription : $registerPayload");
       
-      // 2. Redirection fluide vers l'écran de code OTP
+      // Passe à l'étape OTP sans bloquer
       if (mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -57,7 +54,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   void dispose() {
-    // Libération des contrôleurs pour éviter les fuites de mémoire
     _fullNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
@@ -66,9 +62,10 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bgColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -78,53 +75,49 @@ class _RegisterPageState extends State<RegisterPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 20),
-                const Text(
+                Text(
                   'Créer un compte',
-                  style: TextStyle(color: Color(0xFF1E293B), fontSize: 28, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: context.textColor, fontSize: 28, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 32),
                 
-                // 👤 Champ Nom Complet
-                _buildFieldLabel('Nom complet'),
+                _buildFieldLabel(context, 'Nom complet'),
                 TextFormField(
                   controller: _fullNameController,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: _inputDecoration('Entrez votre nom'),
+                  style: TextStyle(color: context.textColor),
+                  decoration: _inputDecoration(context, 'Entrez votre nom'),
                   validator: (value) => value == null || value.isEmpty ? 'Veuillez entrer votre nom' : null,
                 ),
                 const SizedBox(height: 20),
 
-                // 📧 Champ Email
-                _buildFieldLabel('Email'),
+                _buildFieldLabel(context, 'Email'),
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: _inputDecoration('Entrez votre email'),
+                  style: TextStyle(color: context.textColor),
+                  decoration: _inputDecoration(context, 'Entrez votre email'),
                   validator: (value) => value == null || !value.contains('@') ? 'Email invalide' : null,
                 ),
                 const SizedBox(height: 20),
 
-                // 📞 Champ Téléphone
-                _buildFieldLabel('Téléphone'),
+                _buildFieldLabel(context, 'Téléphone'),
                 TextFormField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: _inputDecoration('+237 6 00 00 00 00'),
+                  style: TextStyle(color: context.textColor),
+                  decoration: _inputDecoration(context, '+237 6 00 00 00 00'),
                   validator: (value) => value == null || value.isEmpty ? 'Numéro de téléphone requis' : null,
                 ),
                 const SizedBox(height: 20),
 
-                // 🔒 Champ Mot de passe
-                _buildFieldLabel('Mot de passe'),
+                _buildFieldLabel(context, 'Mot de passe'),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _isPasswordObscured,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: _inputDecoration('••••••••').copyWith(
+                  style: TextStyle(color: context.textColor),
+                  decoration: _inputDecoration(context, '••••••••').copyWith(
                     suffixIcon: IconButton(
-                      icon: Icon(_isPasswordObscured ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.grey),
+                      icon: Icon(_isPasswordObscured ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: context.secondaryTextColor),
                       onPressed: () => setState(() => _isPasswordObscured = !_isPasswordObscured),
                     ),
                   ),
@@ -132,32 +125,30 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 const SizedBox(height: 40),
 
-                // 🚀 Bouton S'inscrire
                 SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
                     onPressed: _submitRegister,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4E4AF2),
+                      backgroundColor: context.primaryColor,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       elevation: 0,
                     ),
-                    child: const Text('Créer un compte', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: Text('Créer un compte', style: TextStyle(color: context.bgColor, fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
                 const SizedBox(height: 24),
 
-                // Link vers Connexion
                 Center(
                   child: GestureDetector(
                     onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginPage())),
                     child: RichText(
-                      text: const TextSpan(
+                      text: TextSpan(
                         text: 'Déjà un compte ? ',
-                        style: TextStyle(color: Color(0xFF64748B)),
+                        style: TextStyle(color: context.secondaryTextColor),
                         children: [
-                          TextSpan(text: 'Se connecter', style: TextStyle(color: Color(0xFF4E4AF2), fontWeight: FontWeight.bold)),
+                          TextSpan(text: 'Se connecter', style: TextStyle(color: context.primaryColor, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
@@ -171,23 +162,23 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _buildFieldLabel(String label) {
+  Widget _buildFieldLabel(BuildContext context, String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(label, style: const TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.w600, fontSize: 14)),
+      child: Text(label, style: TextStyle(color: context.textColor, fontWeight: FontWeight.w600, fontSize: 14)),
     );
   }
 
-  InputDecoration _inputDecoration(String hint) {
+  InputDecoration _inputDecoration(BuildContext context, String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+      hintStyle: TextStyle(color: context.secondaryTextColor.withOpacity(0.7)),
       filled: true,
-      fillColor: const Color(0xFFF8F9FD),
+      fillColor: context.surfaceColor,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF4E4AF2), width: 1.5)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: context.borderColor)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: context.primaryColor, width: 1.5)),
     );
   }
 }

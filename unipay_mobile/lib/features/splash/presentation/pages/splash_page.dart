@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../app/colors.dart';
-// import '../../../dashboard/presentation/pages/main_shell_page.dart';
+import '../../../auth/presentation/pages/login_page.dart';
 import '../../../onboarding/presentation/pages/onboarding_page.dart';
+import '../../../dashboard/presentation/pages/main_shell_page.dart';
+import '../../../../core/widgets/unipay_logo.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -13,35 +16,60 @@ class SplashPage extends StatefulWidget {
 
 class _SplashPageState extends State<SplashPage> {
   @override
-  void _InitState() {
+  void initState() {
     super.initState();
-    // ⏳ Simulation d'un chargement initial (ex: vérification session/token)
-    // Après 3 secondes, l'application bascule automatiquement vers le Shell principal
+    _startCrono();
+  }
+
+  // ⏳ Déclenche le chrono de 3 secondes au démarrage
+  void _startCrono() {
     Timer(const Duration(seconds: 3), () {
-      if (mounted) {
+      _checkNavigation();
+    });
+  }
+
+  // 🧠 Logique intelligente : Trie l'écran de destination selon l'historique de l'utilisateur
+  void _checkNavigation() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool isSharedOnboardingSeen =
+        prefs.getBool('onboarding_seen') ?? false;
+    final bool isUserRegistered = prefs.getBool('is_user_registered') ?? false;
+
+    if (mounted) {
+      if (isUserRegistered) {
+        // L'utilisateur a déjà tout configuré par le passé -> Go Dashboard direct !
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainShellPage()),
+        );
+      } else if (isSharedOnboardingSeen) {
+        // S'il a vu l'onboarding mais n'a pas fini le tunnel, il reprend à la connexion
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+        );
+      } else {
+        // Tout premier lancement de l'application
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const OnboardingPage()),
-          // MaterialPageRoute(builder: (context) => const MainShellPage()),
         );
       }
-    });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // ✅ TON ANCIEN DESIGN EST PRÉSERVÉ À 100% ICI
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        // 🎨 Dégradé linéaire du violet vers le bleu nuit (Fidèle à l'image)
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF4E4AF2), // Violet électrique UniPay
-              Color(0xFF191654), // Violet sombre intermédiaire
-              AppColors.background, // Ton Bleu Nuit Profond de base
+              Color(0xFF4E4AF2),
+              Color(0xFF191654),
+              AppColors.background,
             ],
           ),
         ),
@@ -50,28 +78,34 @@ class _SplashPageState extends State<SplashPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(flex: 3),
-              
+
               // 📦 Bloc Logo Blanc Arrondi
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Center(
-                  child: Text(
-                    'U',
-                    style: TextStyle(
-                      color: Color(0xFF4E4AF2),
-                      fontSize: 48,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+              // Container(
+              //   width: 80,
+              //   height: 80,
+              //   decoration: BoxDecoration(
+              //     color: Colors.white,
+              //     borderRadius: BorderRadius.circular(20),
+              //   ),
+              //   child: const Center(
+              //     child: Text(
+              //       'U',
+              //       style: TextStyle(
+              //         color: Color(0xFF4E4AF2),
+              //         fontSize: 48,
+              //         fontWeight: FontWeight.bold,
+              //       ),
+              //     ),
+              //   ),
+              // ),
+              // ✅ NOUVEAU CODE AVEC TON VRAI LOGO
+              const UniPayLogo(
+                size: 32.0, // Ajuste la taille selon tes besoins visuels
+                color: Colors
+                    .white, // Si tu veux forcer le logo à s'afficher en blanc sur la carte
               ),
               const SizedBox(height: 24),
-              
+
               // 🏷️ Nom de la marque
               const Text(
                 'UniPay',
@@ -83,8 +117,8 @@ class _SplashPageState extends State<SplashPage> {
                 ),
               ),
               const SizedBox(height: 32),
-              
-              // 📜 Slogan (Exactement comme sur ta capture d'écran)
+
+              // 📜 Slogan
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 40.0),
                 child: Column(
@@ -118,10 +152,10 @@ class _SplashPageState extends State<SplashPage> {
                   ],
                 ),
               ),
-              
+
               const Spacer(flex: 2),
-              
-              // 🔄 La petite roue de chargement en bas (Loader)
+
+              // 🔄 Molette de chargement blanche
               const SizedBox(
                 width: 24,
                 height: 24,
@@ -130,7 +164,7 @@ class _SplashPageState extends State<SplashPage> {
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
                 ),
               ),
-              
+
               const Spacer(flex: 1),
             ],
           ),

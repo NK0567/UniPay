@@ -1,18 +1,28 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
 import 'pin_creation_page.dart';
 
-class KycPage extends StatelessWidget {
+class KycPage extends StatefulWidget {
   const KycPage({super.key});
+
+  @override
+  State<KycPage> createState() => _KycPageState();
+}
+
+class _KycPageState extends State<KycPage> {
+  // 🧪 Variables de simulation hors-ligne
+  bool _isIdUploaded = false;
+  bool _isSelfieUploaded = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.bgColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+          icon: Icon(Icons.arrow_back, color: context.textColor),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -22,14 +32,14 @@ class KycPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 "Vérification d'identité",
-                style: TextStyle(color: Color(0xFF1E293B), fontSize: 26, fontWeight: FontWeight.bold),
+                style: TextStyle(color: context.textColor, fontSize: 26, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 "Pour sécuriser votre compte, veuillez vérifier votre identité.",
-                style: TextStyle(color: Color(0xFF64748B), fontSize: 15, height: 1.4),
+                style: TextStyle(color: context.secondaryTextColor, fontSize: 15, height: 1.4),
               ),
               const SizedBox(height: 32),
 
@@ -37,10 +47,13 @@ class KycPage extends StatelessWidget {
               _buildKycCard(
                 icon: Icons.badge_outlined,
                 title: "Pièce d'identité",
-                subtitle: "Prenez une photo claire de votre pièce d'identité.",
+                subtitle: _isIdUploaded 
+                    ? "Document enregistré avec succès !" 
+                    : "Prenez une photo claire de votre pièce d'identité.",
+                isUploaded: _isIdUploaded,
                 onTap: () {
-                  // TODO: Intégrer mobile_scanner ou camera plus tard pour l'API
-                  debugPrint("Lancement de l'appareil photo pour la CNI");
+                  setState(() => _isIdUploaded = true);
+                  debugPrint("[OFFLINE TEST] CNI chargée virtuellement");
                 },
               ),
               const SizedBox(height: 16),
@@ -49,9 +62,13 @@ class KycPage extends StatelessWidget {
               _buildKycCard(
                 icon: Icons.account_circle_outlined,
                 title: "Selfie",
-                subtitle: "Prenez un selfie pour confirmer que c'est bien vous.",
+                subtitle: _isSelfieUploaded 
+                    ? "Selfie enregistré avec succès !" 
+                    : "Prenez un selfie pour confirmer que c'est bien vous.",
+                isUploaded: _isSelfieUploaded,
                 onTap: () {
-                  debugPrint("Lancement de la caméra frontale pour le Selfie");
+                  setState(() => _isSelfieUploaded = true);
+                  debugPrint("[OFFLINE TEST] Selfie chargé virtuellement");
                 },
               ),
 
@@ -63,13 +80,22 @@ class KycPage extends StatelessWidget {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: Plus tard, s'assurer que les fichiers sont chargés avant de push l'API Node.js
+                    // Alerte facultative si rien n'est cliqué pour guider ton test
+                    if (!_isIdUploaded || !_isSelfieUploaded) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Astuce de test : Cliquez sur les options pour simuler le chargement !'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                    
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(builder: (context) => const PinCreationPage()),
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4E4AF2),
+                    backgroundColor: context.primaryColor,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
@@ -87,6 +113,7 @@ class KycPage extends StatelessWidget {
     required IconData icon,
     required String title,
     required String subtitle,
+    required bool isUploaded,
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -95,9 +122,9 @@ class KycPage extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8F9FD),
+          color: isUploaded ? const Color(0xFFF0FDF4) : context.surfaceColor, // Vert clair si coché
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: isUploaded ?  Color(0xFFBBF7D0) : context.borderColor),
         ),
         child: Row(
           children: [
@@ -106,9 +133,9 @@ class KycPage extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: isUploaded ?  Color(0xFFBBF7D0) : context.borderColor),
               ),
-              child: Icon(icon, color: const Color(0xFF4E4AF2), size: 28),
+              child: Icon(icon, color: isUploaded ? const Color(0xFF16A34A) : context.primaryColor, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -117,16 +144,18 @@ class KycPage extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(color: Color(0xFF1E293B), fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: context.textColor, fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 4),
+                   SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(color: Color(0xFF64748B), fontSize: 13, height: 1.3),
+                    style: TextStyle(color: isUploaded ?  Color(0xFF16A34A) : context.secondaryTextColor, fontSize: 13, height: 1.3),
                   ),
                 ],
               ),
             ),
+            if (isUploaded)
+              Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 24),
           ],
         ),
       ),

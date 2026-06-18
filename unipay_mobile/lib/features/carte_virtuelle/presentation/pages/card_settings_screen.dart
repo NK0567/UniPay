@@ -1,210 +1,197 @@
-import 'package:flutter/material.dart';
+// lib/screens/card_settings_screen.dart
 
-class CardSettingsScreen extends StatefulWidget {
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../../app/theme_extensions.dart'; 
+import 'card_settings_provider.dart'; // 🚀 Correction de la casse de l'import (minuscule)
+
+class CardSettingsScreen extends StatelessWidget {
   const CardSettingsScreen({super.key});
 
   @override
-  State<CardSettingsScreen> createState() => _CardSettingsScreenState();
-}
-
-class _CardSettingsScreenState extends State<CardSettingsScreen> {
-  // États des commutateurs (Switches) pour les canaux et la sécurité
-  bool _allowInternational = true;
-  bool _allowOnline = true;
-  bool _notifyOnSpend = true;
-  bool _requirePinForWeb = false;
-
-  @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF3B36DB); // Bleu/Violet UniPay
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE), // Fond doux identique aux maquettes
+      backgroundColor: context.bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1E293B), size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: const Text(
           'Paramètres de la carte',
-          style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () {
+            FocusScope.of(context).unfocus(); 
+            Navigator.of(context).pop();
+          },
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            
-            // 🛡️ SECTION 1 : SÉCURITÉ
-            _buildSectionTitle('Sécurité'),
-            Container(
-              decoration: _buildBoxDecoration(),
-              child: Column(
-                children: [
-                  _buildSettingTile(
-                    icon: Icons.lock_outline_rounded,
-                    title: 'Modifier le code PIN de la carte',
-                    subtitle: 'Utilisé pour certaines validations',
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-                    onTap: () {
-                      // Ouvrir l'écran de validation/modification du PIN
-                    },
-                  ),
-                  const Divider(height: 1, indent: 55, color: Color(0xFFF1F5F9)),
-                  _buildSwitchTile(
-                    icon: Icons.security_rounded,
-                    title: 'Double authentification (3D Secure)',
-                    subtitle: 'Demander le code PIN de l\'app pour chaque achat web',
-                    value: _requirePinForWeb,
-                    onChanged: (val) => setState(() => _requirePinForWeb = val),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+      body: Consumer<CardSettingsProvider>(
+        builder: (context, settingsProvider, child) {
+          if (settingsProvider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            // 🌍 SECTION 2 : AUTORISATIONS DE PAIEMENT (Contrôle des canaux)
-            _buildSectionTitle('Canaux de paiement'),
-            Container(
-              decoration: _buildBoxDecoration(),
-              child: Column(
-                children: [
-                  _buildSwitchTile(
-                    icon: Icons.language_rounded,
-                    title: 'Paiements internationaux',
-                    subtitle: 'Autoriser les transactions hors de la zone CEMAC',
-                    value: _allowInternational,
-                    onChanged: (val) => setState(() => _allowInternational = val),
-                  ),
-                  const Divider(height: 1, indent: 55, color: Color(0xFFF1F5F9)),
-                  _buildSwitchTile(
-                    icon: Icons.shopping_cart_outlined,
-                    title: 'Achats en ligne',
-                    subtitle: 'Autoriser l\'utilisation sur les sites e-commerce',
-                    value: _allowOnline,
-                    onChanged: (val) => setState(() => _allowOnline = val),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSectionTitle('Sécurité'),
+                const SizedBox(height: 10),
+                _buildSettingsGroup(
+                  children: [
+                    _buildSwitchTile(
+                      icon: Icons.lock_outline_rounded,
+                      iconColor: Colors.blue,
+                      title: 'Double authentification',
+                      subtitle: 'Exiger le code PIN pour les achats web',
+                      value: settingsProvider.requirePinForWeb,
+                      onChanged: (val) => _executeAction(context, () => settingsProvider.toggleRequirePinForWeb(val)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
 
-            // 🔔 SECTION 3 : NOTIFICATIONS
-            _buildSectionTitle('Alertes'),
-            Container(
-              decoration: _buildBoxDecoration(),
-              child: _buildSwitchTile(
-                icon: Icons.notifications_none_rounded,
-                title: 'Notifications de dépenses',
-                subtitle: 'Recevoir une alerte instantanée à chaque débit',
-                value: _notifyOnSpend,
-                onChanged: (val) => setState(() => _notifyOnSpend = val),
-              ),
-            ),
-            const SizedBox(height: 32),
+                _buildSectionTitle('Canaux d\'utilisation'),
+                const SizedBox(height: 10),
+                _buildSettingsGroup(
+                  children: [
+                    _buildSwitchTile(
+                      icon: Icons.language_rounded,
+                      iconColor: Colors.green,
+                      title: 'Paiements internationaux',
+                      subtitle: 'Autoriser les transactions hors du pays',
+                      value: settingsProvider.allowInternational,
+                      onChanged: (val) => _executeAction(context, () => settingsProvider.toggleInternational(val)),
+                    ),
+                    const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
+                    _buildSwitchTile(
+                      icon: Icons.shopping_cart_outlined,
+                      iconColor: Colors.orange,
+                      title: 'Achats en ligne',
+                      subtitle: 'Autoriser l\'utilisation sur les sites e-commerce',
+                      value: settingsProvider.allowOnline,
+                      onChanged: (val) => _executeAction(context, () => settingsProvider.toggleOnline(val)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
 
-            // 🚨 SECTION 4 : ACTIONS CRITIQUES (Rouge)
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.red.shade100),
-              ),
-              child: _buildSettingTile(
-                icon: Icons.delete_outline_rounded,
-                iconColor: Colors.red,
-                title: 'Supprimer la carte virtuelle',
-                titleColor: Colors.red,
-                subtitle: 'Action irréversible. Le solde reste sur votre wallet.',
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.red),
-                onTap: () => _showDeleteConfirmation(context),
-              ),
+                _buildSectionTitle('Alertes'),
+                const SizedBox(height: 10),
+                _buildSettingsGroup(
+                  children: [
+                    _buildSwitchTile(
+                      icon: Icons.notifications_none_rounded,
+                      iconColor: Colors.purple,
+                      title: 'Notifications de dépenses',
+                      subtitle: 'Recevoir une alerte après chaque achat',
+                      value: settingsProvider.notifyOnSpend,
+                      onChanged: (val) => _executeAction(context, () => settingsProvider.toggleNotifyOnSpend(val)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 40),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: TextButton.icon(
+                    onPressed: () => _confirmDeletion(context, settingsProvider),
+                    icon: const Icon(Icons.delete_forever_rounded, color: Colors.red),
+                    label: const Text(
+                      'Supprimer définitivement la carte', 
+                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.red.withOpacity(0.08),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
-    );
-  }
-
-  // Styles réutilisables pour les blocs de paramètres
-  BoxDecoration _buildBoxDecoration() {
-    return BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFFE2E8F0)),
     );
   }
 
   Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 10),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF64748B), letterSpacing: 0.5),
+    return Text(
+      title.toUpperCase(), 
+      style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+    );
+  }
+
+  Widget _buildSettingsGroup({required List<Widget> children}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(16), 
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: Column(children: children),
       ),
     );
   }
 
-  // Ligne de paramètre classique (Lien / Bouton)
-  Widget _buildSettingTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Widget trailing,
-    required VoidCallback onTap,
-    Color iconColor = const Color(0xFF3B36DB),
-    Color titleColor = const Color(0xFF1E293B),
-  }) {
-    return ListTile(
-      onTap: onTap,
-      leading: Icon(icon, color: iconColor, size: 22),
-      title: Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: titleColor)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-      trailing: trailing,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-    );
-  }
-
-  // Ligne de paramètre avec un Switch toggle
   Widget _buildSwitchTile({
-    required IconData icon,
+    required IconData icon, 
+    required Color iconColor, 
     required String title,
-    required String subtitle,
-    required bool value,
+    required String subtitle, 
+    required bool value, 
     required ValueChanged<bool> onChanged,
   }) {
-    return SwitchListTile(
-      value: value,
-      onChanged: onChanged,
-      secondary: Icon(icon, color: const Color(0xFF3B36DB), size: 22),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E293B))),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-      activeColor: const Color(0xFF3B36DB),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: iconColor.withOpacity(0.1), shape: BoxShape.circle),
+        child: Icon(icon, color: iconColor, size: 22),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Color(0xFF1E293B))),
+      subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      trailing: Switch.adaptive(value: value, activeColor: const Color(0xFF3B36DB), onChanged: onChanged),
     );
   }
 
-  // Pop-up de confirmation pour la suppression de la carte
-  void _showDeleteConfirmation(BuildContext context) {
+  Future<void> _executeAction(BuildContext context, Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erreur lors de la mise à jour.'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _confirmDeletion(BuildContext context, CardSettingsProvider provider) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Supprimer la carte ?'),
-        content: const Text('Êtes-vous sûr de vouloir supprimer définitivement cette carte virtuelle UniPay ?'),
+        content: const Text('Cette action est irréversible. Vous perdrez définitivement l\'accès à cette carte virtuelle.'),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: Colors.grey))),
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () {
-              // Logique API pour supprimer la carte
-              Navigator.pop(context); // Ferme le dialogue
-              Navigator.pop(context); // Revient à l'écran précédent (ou recharge l'état opt-in)
+            onPressed: () async {
+              Navigator.pop(ctx); 
+              bool success = await provider.deleteCard();
+              if (success && context.mounted) {
+                Navigator.of(context).pop(); 
+              }
             },
             child: const Text('Supprimer', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
 import 'register_page.dart';
 import '../../../dashboard/presentation/pages/main_shell_page.dart';
+import './otp_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,17 +19,30 @@ class _LoginPageState extends State<LoginPage> {
 
   void _submitLogin() {
     if (_formKey.currentState!.validate()) {
-      // Redirection vers le tableau de bord principal après connexion réussie
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const MainShellPage()),
+      debugPrint(
+        "[OFFLINE TEST] Tentative de connexion pour : ${_identifierController.text}",
       );
+
+      // Redirection instantanée vers l'accueil
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainShellPage()),
+        );
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _identifierController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bgColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -37,73 +52,117 @@ class _LoginPageState extends State<LoginPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 40),
-                const Text(
+                Text(
                   'Se connecter',
-                  style: TextStyle(color: Color(0xFF1E293B), fontSize: 28, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: context.textColor,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 40),
 
-                // 📧 Champ Identifiant
-                _buildFieldLabel('Email ou téléphone'),
+                _buildFieldLabel(context, 'Email ou téléphone'),
                 TextFormField(
                   controller: _identifierController,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: _inputDecoration('Entrez votre email ou téléphone'),
-                  validator: (value) => value == null || value.isEmpty ? 'Ce champ est requis' : null,
+                  style: TextStyle(color: context.textColor),
+                  decoration: _inputDecoration(context,
+                    'Entrez votre email ou téléphone',
+                  ),
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Ce champ est requis'
+                      : null,
                 ),
                 const SizedBox(height: 20),
 
-                // 🔒 Champ Mot de passe
-                _buildFieldLabel('Mot de passe'),
+                _buildFieldLabel(context, 'Mot de passe'),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _isPasswordObscured,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: _inputDecoration('Entrez votre mot de passe').copyWith(
-                    suffixIcon: IconButton(
-                      icon: Icon(_isPasswordObscured ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.grey),
-                      onPressed: () => setState(() => _isPasswordObscured = !_isPasswordObscured),
-                    ),
-                  ),
-                  validator: (value) => value == null || value.isEmpty ? 'Mot de passe requis' : null,
+                  style: TextStyle(color: context.textColor),
+                  decoration: _inputDecoration(context, 'Entrez votre mot de passe')
+                      .copyWith(
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _isPasswordObscured
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            color: context.secondaryTextColor,
+                          ),
+                          onPressed: () => setState(
+                            () => _isPasswordObscured = !_isPasswordObscured,
+                          ),
+                        ),
+                      ),
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Mot de passe requis'
+                      : null,
                 ),
-                
-                // 🔄 Mot de passe oublié
+
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {},
-                    child: const Text('Mot de passe oublié ?', style: TextStyle(color: Color(0xFF4E4AF2), fontWeight: FontWeight.w600)),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const OtpPage(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Mot de passe oublié ?',
+                      style: TextStyle(
+                        color: context.primaryColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 32),
 
-                // 🚀 Bouton Se connecter
                 SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
                     onPressed: _submitLogin,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4E4AF2),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      backgroundColor: context.primaryColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       elevation: 0,
                     ),
-                    child: const Text('Se connecter', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      'Se connecter',
+                      style: TextStyle(
+                        color: context.bgColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 32),
 
-                // Link vers Inscription
                 Center(
                   child: GestureDetector(
-                    onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const RegisterPage())),
+                    onTap: () => Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterPage(),
+                      ),
+                    ),
                     child: RichText(
-                      text: const TextSpan(
+                      text: TextSpan(
                         text: 'Pas encore de compte ? ',
-                        style: TextStyle(color: Color(0xFF64748B)),
+                        style: TextStyle(color: context.secondaryTextColor),
                         children: [
-                          TextSpan(text: 'S\'inscrire', style: TextStyle(color: Color(0xFF4E4AF2), fontWeight: FontWeight.bold)),
+                          TextSpan(
+                            text: 'S\'inscrire',
+                            style: TextStyle(
+                              color: context.primaryColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -117,23 +176,39 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildFieldLabel(String label) {
+  Widget _buildFieldLabel(BuildContext context, String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(label, style: const TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.w600, fontSize: 14)),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: context.textColor,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+      ),
     );
   }
 
-  InputDecoration _inputDecoration(String hint) {
+  InputDecoration _inputDecoration(BuildContext context, String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+      hintStyle: TextStyle(color: context.secondaryTextColor.withOpacity(0.7)),
       filled: true,
-      fillColor: const Color(0xFFF8F9FD),
+      fillColor: context.surfaceColor,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF4E4AF2), width: 1.5)),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: context.borderColor),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: context.primaryColor, width: 1.5),
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
 import '../../../chatbot/presentation/pages/UniPayFloatingAssistant.dart';
 import 'DepositSuccessScreen.dart';
 
@@ -17,17 +18,17 @@ class _DepositDetailsScreenState extends State<DepositDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.bgColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back, color: context.textColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Dépôt via MTN',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(color: context.textColor, fontWeight: FontWeight.bold),
         ),
       ),
       body: Padding(
@@ -43,7 +44,7 @@ class _DepositDetailsScreenState extends State<DepositDetailsScreen> {
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                 suffixText: 'FCFA',
-                suffixStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+                suffixStyle: TextStyle(fontWeight: FontWeight.bold, color: context.textColor),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
 import 'pay_confirmation_page.dart';
 
 class PayAmountPage extends StatefulWidget {
@@ -75,17 +76,17 @@ class _PayAmountPageState extends State<PayAmountPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.bgColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+          icon: Icon(Icons.arrow_back, color: context.textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           widget.isMerchant ? 'Paiement Marchand' : 'Payer via UniPay', 
-          style: const TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold),
+          style: TextStyle(color: context.textColor, fontWeight: FontWeight.bold),
         ),
       ),
       body: SafeArea(
@@ -99,7 +100,7 @@ class _PayAmountPageState extends State<PayAmountPage> {
                 widget.isMerchant
                     ? 'Ce commerçant a défini un montant fixe pour régler cette facture via le réseau UniPay.'
                     : 'Entrez le montant de votre paiement. UniPay s\'occupe de la conversion instantanée.',
-                style: const TextStyle(color: Color(0xFF64748B), fontSize: 14, height: 1.4),
+                style: TextStyle(color: context.secondaryTextColor, fontSize: 14, height: 1.4),
               ),
               const SizedBox(height: 24),
 
@@ -107,18 +108,18 @@ class _PayAmountPageState extends State<PayAmountPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8F9FD),
+                  color: context.surfaceColor,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: context.borderColor),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Votre solde disponible', style: TextStyle(color: Color(0xFF64748B), fontSize: 14)),
+                     Text('Votre solde disponible', style: TextStyle(color: context.secondaryTextColor, fontSize: 14)),
                     Text(
                       '125 750 XAF',
                       style: TextStyle(
-                        color: hasEnoughBalance ? const Color(0xFF1E293B) : Colors.red,
+                        color: hasEnoughBalance ? context.textColor : Colors.red,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -132,7 +133,7 @@ class _PayAmountPageState extends State<PayAmountPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Vous envoyez', style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 14)),
+                   Text('Vous envoyez', style: TextStyle(color: context.textColor, fontWeight: FontWeight.bold, fontSize: 14)),
                   if (widget.isMerchant)
                     const Text('🔒 Montant bloqué', style: TextStyle(color: Color(0xFF4E4AF2), fontSize: 12, fontWeight: FontWeight.w600)),
                 ],
@@ -144,34 +145,34 @@ class _PayAmountPageState extends State<PayAmountPage> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 onChanged: _calculateConversion,
                 style: TextStyle(
-                  color: widget.isMerchant ? const Color(0xFF64748B) : Colors.black, 
+                  color: widget.isMerchant ? context.secondaryTextColor : context.textColor, 
                   fontSize: 22, 
                   fontWeight: FontWeight.bold
                 ),
                 decoration: InputDecoration(
                   hintText: '0.00',
                   filled: true,
-                  fillColor: widget.isMerchant ? const Color(0xFFF1F5F9) : const Color(0xFFF8F9FD),
-                  prefixIcon: const Padding(
+                  fillColor: widget.isMerchant ?  Color(0xFFF1F5F9) :  Color(0xFFF8F9FD),
+                  prefixIcon:  Padding(
                     padding: EdgeInsets.symmetric(horizontal: 12),
                     child: Text('🇺🇸 USD', style: TextStyle(fontSize: 18, height: 1.5)),
                   ),
-                  prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                  prefixIconConstraints:  BoxConstraints(minWidth: 0, minHeight: 0),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12), 
-                    borderSide: BorderSide(color: widget.isMerchant ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0)),
+                    borderSide: BorderSide(color: widget.isMerchant ?  Color(0xFFCBD5E1) : context.borderColor),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12), 
-                    borderSide: BorderSide(color: widget.isMerchant ? const Color(0xFFCBD5E1) : const Color(0xFF4E4AF2), width: 1.5),
+                    borderSide: BorderSide(color: widget.isMerchant ?  Color(0xFFCBD5E1) :  Color(0xFF4E4AF2), width: 1.5),
                   ),
                 ),
               ),
               const SizedBox(height: 20),
 
               // 📥 Bloc Réception Dynamique (Devise Cible : XAF)
-              const Text('Le bénéficiaire recevra', style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 14)),
+               Text('Le bénéficiaire recevra', style: TextStyle(color: context.textColor, fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
@@ -189,11 +190,11 @@ class _PayAmountPageState extends State<PayAmountPage> {
                         const SizedBox(width: 8),
                         Text(
                           amountToReceiveXAF.toStringAsFixed(0),
-                          style: const TextStyle(color: Color(0xFF1E293B), fontSize: 20, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: context.textColor, fontSize: 20, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
-                    const Text('Fixé par le taux', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                     Text('Fixé par le taux', style: TextStyle(color: context.secondaryTextColor, fontSize: 12)),
                   ],
                 ),
               ),
@@ -213,14 +214,14 @@ class _PayAmountPageState extends State<PayAmountPage> {
                     _buildLiveInfoRow('Frais de transaction', '${transactionFeeUSD.toStringAsFixed(2)} USD'),
                     const SizedBox(height: 8),
                     _buildLiveInfoRow('Spread UniPay', '${(uniPaySpread * 100).toStringAsFixed(1)}% (Inclus)'),
-                    const Divider(color: Color(0xFFE2E8F0), height: 20),
+                     Divider(color: context.borderColor, height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Total débité estimé', style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 14)),
+                         Text('Total débité estimé', style: TextStyle(color: context.textColor, fontWeight: FontWeight.bold, fontSize: 14)),
                         Text(
                           '${totalDebitedUSD.toStringAsFixed(2)} USD',
-                          style: const TextStyle(color: Color(0xFF4E4AF2), fontWeight: FontWeight.bold, fontSize: 16),
+                          style: TextStyle(color: Color(0xFF4E4AF2), fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                       ],
                     ),
@@ -263,7 +264,7 @@ class _PayAmountPageState extends State<PayAmountPage> {
                         }
                       : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4E4AF2),
+                    backgroundColor: context.primaryColor,
                     disabledBackgroundColor: const Color(0xFFCBD5E1),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
@@ -282,8 +283,8 @@ class _PayAmountPageState extends State<PayAmountPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
-        Text(value, style: const TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.w600, fontSize: 13)),
+        Text(label, style: TextStyle(color: context.secondaryTextColor, fontSize: 13)),
+        Text(value, style: TextStyle(color: context.textColor, fontWeight: FontWeight.w600, fontSize: 13)),
       ],
     );
   }

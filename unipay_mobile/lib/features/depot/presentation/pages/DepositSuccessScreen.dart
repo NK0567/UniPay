@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
+import 'transaction_detail_view.dart';
 
 class DepositSuccessScreen extends StatelessWidget {
   const DepositSuccessScreen({super.key});
@@ -8,7 +10,7 @@ class DepositSuccessScreen extends StatelessWidget {
     const primaryColor = Color(0xFF3F3DCE);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bgColor,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -19,11 +21,11 @@ class DepositSuccessScreen extends StatelessWidget {
               // Badge de validation vert
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: Color(0xFF41A461),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check, size: 48, color: Colors.white),
+                child: Icon(Icons.check, size: 48, color: Colors.white),
               ),
               const SizedBox(height: 24),
               const Text(
@@ -38,7 +40,11 @@ class DepositSuccessScreen extends StatelessWidget {
                   children: [
                     TextSpan(
                       text: 'a été ajouté à votre compte',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.normal,
+                        color: Colors.grey,
+                      ),
                     ),
                   ],
                 ),
@@ -53,13 +59,28 @@ class DepositSuccessScreen extends StatelessWidget {
 
               // Actions finales
               OutlinedButton(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TransactionDetailView(),
+                    ), // ✅ Connecté !
+                  );
+                },
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 54),
-                  side: const BorderSide(color: primaryColor),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  side: BorderSide(color: primaryColor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
-                child: const Text('Voir le reçu', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Voir le reçu',
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               ElevatedButton(
@@ -70,9 +91,17 @@ class DepositSuccessScreen extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
                   minimumSize: const Size(double.infinity, 54),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
-                child: const Text('Retour à l\'accueil', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Retour à l\'accueil',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
 
 class TransactionHistoryView extends StatelessWidget {
   const TransactionHistoryView({super.key});
@@ -8,15 +9,15 @@ class TransactionHistoryView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Historique des transactions'),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        backgroundColor: context.bgColor,
+        foregroundColor: context.textColor,
         elevation: 0,
       ),
-      body: const Center(
+      body: Center(
         child: Text(
           'Aucune transaction à afficher pour le moment.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
+          style: TextStyle(fontSize: 16, color: context.secondaryTextColor),
         ),
       ),
     );

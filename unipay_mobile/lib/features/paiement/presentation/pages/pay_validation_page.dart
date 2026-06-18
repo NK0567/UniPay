@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme_extensions.dart';
+import 'pay_success_page.dart';
 
 class PayValidationPage extends StatefulWidget {
   final String totalUSD;
@@ -20,7 +22,7 @@ class _CloseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: const Icon(Icons.close, color: Color(0xFF1E293B)),
+      icon: Icon(Icons.close, color: context.textColor),
       onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
     );
   }
@@ -68,7 +70,6 @@ class _PayValidationPageState extends State<PayValidationPage> {
   }
 
   void _verifyAndProcessPayment() {
-    // Simulation d'un traitement de paiement
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -77,26 +78,32 @@ class _PayValidationPageState extends State<PayValidationPage> {
       ),
     );
 
+    // 🌐 C'est ici que ton API UniPay sera appelée
     Future.delayed(const Duration(seconds: 2), () {
       Navigator.pop(context); // Ferme le loader
-      
-      // Ici, tu rediriges vers l'écran de succès final (Écran 13)
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Paiement de ${widget.amountXAF} FCFA validé avec succès !'),
-          backgroundColor: const Color(0xFF10B981),
+
+      if (!mounted) return;
+
+      // 🔥 Redirection finale propre en détruisant le tunnel de paiement
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => PaySuccessPage(
+            amountUSD: widget.totalUSD,
+            amountXAF: widget.amountXAF,
+          ),
         ),
+        (route) => route
+            .isFirst, // Conserve uniquement la racine de l'app (MainShellPage)
       );
-      Navigator.of(context).popUntil((route) => route.isFirst);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.bgColor,
         elevation: 0,
         automaticallyImplyLeading: false,
         actions: const [_CloseButton()],
@@ -114,19 +121,34 @@ class _PayValidationPageState extends State<PayValidationPage> {
                     Container(
                       height: 64,
                       width: 64,
-                      decoration: const BoxDecoration(color: Color(0xFFEEEDFD), shape: BoxShape.circle),
-                      child: const Icon(Icons.lock_outline_rounded, color: Color(0xFF4E4AF2), size: 30),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFEEEDFD),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.lock_outline_rounded,
+                        color: Color(0xFF4E4AF2),
+                        size: 30,
+                      ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
+                    Text(
                       'Validez le paiement',
-                      style: TextStyle(color: Color(0xFF1E293B), fontSize: 22, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        color: context.textColor,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Entrez votre code PIN secret UniPay pour confirmer le débit de ${widget.totalUSD} USD.',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Color(0xFF64748B), fontSize: 14, height: 1.4),
+                      style: TextStyle(
+                        color: context.secondaryTextColor,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
                     ),
                     const SizedBox(height: 40),
 
@@ -142,9 +164,13 @@ class _PayValidationPageState extends State<PayValidationPage> {
                           width: 16,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: isFilled ? const Color(0xFF4E4AF2) : const Color(0xFFF1F5F9),
+                            color: isFilled
+                                ? context.primaryColor
+                                : const Color(0xFFF1F5F9),
                             border: Border.all(
-                              color: isFilled ? const Color(0xFF4E4AF2) : const Color(0xFFCBD5E1),
+                              color: isFilled
+                                  ? context.primaryColor
+                                  : const Color(0xFFCBD5E1),
                               width: 1.5,
                             ),
                           ),
@@ -152,14 +178,18 @@ class _PayValidationPageState extends State<PayValidationPage> {
                       }),
                     ),
                     const SizedBox(height: 30),
-                    
+
                     TextButton(
                       onPressed: () {
                         // Action mot de passe oublié
                       },
                       child: const Text(
                         'Code PIN oublié ?',
-                        style: TextStyle(color: Color(0xFF4E4AF2), fontWeight: FontWeight.bold, fontSize: 14),
+                        style: TextStyle(
+                          color: Color(0xFF4E4AF2),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ],
@@ -169,7 +199,7 @@ class _PayValidationPageState extends State<PayValidationPage> {
 
             // 🎛️ Pavé numérique rotatif dynamique (Bas de page fixe)
             Container(
-              color: const Color(0xFFF8F9FD),
+              color: context.surfaceColor,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
               child: Column(
                 children: [
@@ -177,12 +207,13 @@ class _PayValidationPageState extends State<PayValidationPage> {
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      mainAxisSpacing: 16,
-                      crossAxisSpacing: 24,
-                      childAspectRatio: 1.4,
-                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 24,
+                          childAspectRatio: 1.4,
+                        ),
                     itemCount: 9,
                     itemBuilder: (context, index) {
                       int number = _shuffledNumbers[index];
@@ -214,9 +245,13 @@ class _PayValidationPageState extends State<PayValidationPage> {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                              border: Border.all(color: context.borderColor),
                             ),
-                            child: const Icon(Icons.backspace_outlined, color: Color(0xFF1E293B), size: 22),
+                            child: Icon(
+                              Icons.backspace_outlined,
+                              color: context.textColor,
+                              size: 22,
+                            ),
                           ),
                         ),
                       ),
@@ -231,7 +266,10 @@ class _PayValidationPageState extends State<PayValidationPage> {
     );
   }
 
-  Widget _buildKeyboardButton({required String label, required VoidCallback onTap}) {
+  Widget _buildKeyboardButton({
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -240,7 +278,7 @@ class _PayValidationPageState extends State<PayValidationPage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: context.borderColor),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF0F172A).withOpacity(0.03),
@@ -252,8 +290,8 @@ class _PayValidationPageState extends State<PayValidationPage> {
         ),
         child: Text(
           label,
-          style: const TextStyle(
-            color: Color(0xFF1E293B),
+          style: TextStyle(
+            color: context.textColor,
             fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
