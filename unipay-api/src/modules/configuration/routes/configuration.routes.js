@@ -4,12 +4,13 @@ const configurationController = require('../controllers/configuration.controller
 const authMiddleware = require('../../../middlewares/auth.middleware');
 const roleMiddleware = require('../../../middlewares/role.middleware');
 
-// 🔐 Protection stricte du module de configuration
+// 🔐 Middleware de restriction d'infrastructure : ADMIN obligatoire
 router.use(authMiddleware);
 router.use(roleMiddleware(['ADMIN']));
 
-// Routes d'administration des paramètres de la Fintech
+// Définition des passerelles d'administration
 router.get('/', configurationController.listerToutes);
 router.put('/modifier', configurationController.modifierParametre);
+router.post('/bloc', configurationController.sauvegarderBlocConfig); // Liaison avec la page de modification de branding du Frontend
 
 module.exports = router;

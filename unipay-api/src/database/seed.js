@@ -11,20 +11,25 @@ const prisma = new PrismaClient();
 async function main() {
     console.log('🚀 Initialisation du système UniPay...');
 
-    // 1. Injection de l'agrégateur interne mondial
-    const agregateur = await prisma.agregateur.upsert({
+    // 1. 🌟 CORRECTION CRITIQUE : Injection de l'agrégateur INTERNE requis par admin.repository.js
+    const agregateurInterne = await prisma.agregateur.upsert({
         where: { id: 'ag_unipay' },
-        update: {},
+        update: {
+            nom: 'INTERNE', // Force le nom attendu par executerVirementGains
+            type: 'INTERNE',
+            pays: 'ALL',
+            statut: 'ACTIF'
+        },
         create: {
             id: 'ag_unipay',
-            nom: 'UniPay Modial',
+            nom: 'INTERNE',
             type: 'INTERNE',
             pays: 'ALL',
             commissionPct: 0.015,
             statut: 'ACTIF'
         }
     });
-    console.log(`✅ Agrégateur configuré : ${agregateur.nom}`);
+    console.log(`✅ Agrégateur système configuré : ${agregateurInterne.nom}`);
 
     // Configuration générale des commissions clients perçues par UniPay
     await prisma.configurationSysteme.upsert({
@@ -145,7 +150,7 @@ async function main() {
         if (!utilisateurExiste) {
             const numeroAleatoire = numerosInternationaux[Math.floor(Math.random() * numerosInternationaux.length)];
             const localisationUser = currencyHelper.detecterParTelephone(numeroAleatoire);
-            const soldeUserAleatoire = Math.floor(Math.random() * (1000000 - 900000 + 1)) + 900000;
+            const soldeUserAleatoire = Math.floor(Math.random() * (500000 - 300000 + 1)) + 300000;
 
             const motDePasseHashe = PasswordUtil.hacher
                 ? await PasswordUtil.hacher(passwordUserClair)
@@ -194,25 +199,22 @@ async function main() {
             valeur: "2.0", 
             type: "FINANCIER", 
             description: "Frais de dépôt par défaut facturés au client (%)" 
-
         },
         { 
             cle: "FRAIS_RETRAIT_PCT", 
             valeur: "1.5", 
             type: "FINANCIER", 
             description: "Frais de retrait par défaut facturés au client (%)" 
-
         },
         { 
             cle: "FRAIS_PAIEMENT_LIEN_PCT", 
             valeur: "0.0", 
             type: "FINANCIER", 
             description: "Frais de transfert interne UniPay par lien (%)" 
-
         },
         {
-            cle: "FRAIS_BLAME_EPARGNE_PCT", // 🎯 Changement de clé pour refléter le pourcentage
-            valeur: "0.5.0",                  // 5.0% de pénalité sur le solde épargné
+            cle: "FRAIS_BLAME_EPARGNE_PCT", 
+            valeur: "5.0", // Correction de la chaîne mal formée "0.5.0"
             type: "FINANCIER",
             description: "Pénalité en pourcentage prélevée en cas de rupture d'épargne stricte (%)"
         },
@@ -247,115 +249,36 @@ async function main() {
 
     console.log('⚡ Injection de la matrice des 11 agrégateurs internationaux...');
 
-const matriceAgregateurs = [
-  // --- 🇨🇲 CAMEROUN (Zone XAF) ---
-  { 
-    id: "flw-cm-momo", 
-    nom: "MTN_MOMO_FLUTTERWAVE", 
-    type: "MOBILE_MONEY", 
-    pays: "CM", 
-    operationType: "LES_DEUX", 
-    commissionPct: 0.0150, 
-    fraisFixes: 0 
-},
-  { 
-    id: "bizao-cm-momo", 
-    nom: "MTN_MOMO_BIZAO", 
-    type: "MOBILE_MONEY", 
-    pays: "CM", 
-    operationType: "LES_DEUX", 
-    commissionPct: 0.0110, 
-    fraisFixes: 10 
-}, // 🧠 Le Smart Routing va préférer celui-ci (1.1%) !
-  { 
-    id: "cinetpay-cm-orange", 
-    nom: "ORANGE_MONEY_CINETPAY", 
-    type: "MOBILE_MONEY", 
-    pays: "CM", 
-    operationType: "LES_DEUX", 
-    commissionPct: 0.0200, 
-    fraisFixes: 0 
-},
-  { 
-    id: "monetbill-cm-orange", 
-    nom: "ORANGE_MONEY_MONETBILL", 
-    type: "MOBILE_MONEY", 
-    pays: "CM", 
-    operationType: "LES_DEUX", 
-    commissionPct: 0.0130, 
-    fraisFixes: 0 
-}, // 🧠 Préféré pour Orange !
+    const matriceAgregateurs = [
+        // --- 🇨🇲 CAMEROUN (Zone XAF) ---
+        { id: "flw-cm-momo", nom: "MTN_MOMO_FLUTTERWAVE", type: "MOBILE_MONEY", pays: "CM", operationType: "LES_DEUX", commissionPct: 0.0150, fraisFixes: 0 },
+        { id: "bizao-cm-momo", nom: "MTN_MOMO_BIZAO", type: "MOBILE_MONEY", pays: "CM", operationType: "LES_DEUX", commissionPct: 0.0110, fraisFixes: 10 },
+        { id: "cinetpay-cm-orange", nom: "ORANGE_MONEY_CINETPAY", type: "MOBILE_MONEY", pays: "CM", operationType: "LES_DEUX", commissionPct: 0.0200, fraisFixes: 0 },
+        { id: "monetbill-cm-orange", nom: "ORANGE_MONEY_MONETBILL", type: "MOBILE_MONEY", pays: "CM", operationType: "LES_DEUX", commissionPct: 0.0130, fraisFixes: 0 },
 
-  // --- 🇨🇮 CÔTE D'IVOIRE & 🇸🇳 SÉNÉGAL (Zone XOF) ---
-  { 
-    id: "touchpay-sn-wave", 
-    nom: "WAVE_TOUCHPAY", 
-    type: "MOBILE_MONEY", 
-    pays: "SN", 
-    operationType: "LES_DEUX", 
-    commissionPct: 0.0060, 
-    fraisFixes: 0 
-},
-  { 
-    id: "intouch-ci-orange", 
-    nom: "ORANGE_CI_INTOUCH", 
-    type: "MOBILE_MONEY", 
-    pays: "CI", 
-    operationType: "LES_DEUX", 
-    commissionPct: 0.0180, 
-    fraisFixes: 0 
-},
-  { 
-    id: "paystack-ci-momo", 
-    nom: "MTN_CI_PAYSTACK", 
-    type: "MOBILE_MONEY", 
-    pays: "CI", 
-    operationType: "LES_DEUX", 
-    commissionPct: 0.0140, 
-    fraisFixes: 0 
-},
-  { 
-    id: "serdipay-tg-moov", 
-    nom: "MOOV_BENIN_SERDIPAY", 
-    type: "MOBILE_MONEY", 
-    pays: "BJ", 
-    operationType: "LES_DEUX", 
-    commissionPct: 0.0125, fraisFixes: 25 
-},
+        // --- 🇨🇮 CÔTE D'IVOIRE & 🇸🇳 SÉNÉGAL (Zone XOF) ---
+        { id: "touchpay-sn-wave", nom: "WAVE_TOUCHPAY", type: "MOBILE_MONEY", pays: "SN", operationType: "LES_DEUX", commissionPct: 0.0060, fraisFixes: 0 },
+        { id: "intouch-ci-orange", nom: "ORANGE_CI_INTOUCH", type: "MOBILE_MONEY", pays: "CI", operationType: "LES_DEUX", commissionPct: 0.0180, fraisFixes: 0 },
+        { id: "paystack-ci-momo", nom: "MTN_CI_PAYSTACK", type: "MOBILE_MONEY", pays: "CI", operationType: "LES_DEUX", commissionPct: 0.0140, fraisFixes: 0 },
+        { id: "serdipay-tg-moov", nom: "MOOV_BENIN_SERDIPAY", type: "MOBILE_MONEY", pays: "BJ", operationType: "LES_DEUX", commissionPct: 0.0125, fraisFixes: 25 },
 
-  // --- 🇪🇺 FRANCE / 🇺🇸 USA (Zone EUR/USD) ---
-  { 
-    id: "stripe-eu-card", 
-    nom: "STRIPE_EUROPE", 
-    type: "CARTE", 
-    pays: "FR", 
-    operationType: "LES_DEUX", 
-    commissionPct: 0.0140, 
-    fraisFixes: 150 
-},
-  { 
-    id: "paymoney-us-wallet", 
-    nom: "PAYMONEY_USA", 
-    type: "CARTE", 
-    pays: "US", 
-    operationType: "LES_DEUX", 
-    commissionPct: 0.0290, 
-    fraisFixes: 200 
-}
-];
+        // --- 🇪🇺 FRANCE / 🇺🇸 USA (Zone EUR/USD) ---
+        { id: "stripe-eu-card", nom: "STRIPE_EUROPE", type: "CARTE", pays: "FR", operationType: "LES_DEUX", commissionPct: 0.0140, fraisFixes: 150 },
+        { id: "paymoney-us-wallet", nom: "PAYMONEY_USA", type: "CARTE", pays: "US", operationType: "LES_DEUX", commissionPct: 0.0290, fraisFixes: 200 }
+    ];
 
-for (const ag of matriceAgregateurs) {
-  await prisma.agregateur.upsert({
-    where: { id: ag.id },
-    update: {
-      commissionPct: ag.commissionPct,
-      fraisFixes: ag.fraisFixes,
-      operationType: ag.operationType
-    },
-    create: ag
-  });
-}
-console.log('✅ Matrice d\'agrégateurs déployée.');
+    for (const ag of matriceAgregateurs) {
+        await prisma.agregateur.upsert({
+            where: { id: ag.id },
+            update: {
+                commissionPct: ag.commissionPct,
+                fraisFixes: ag.fraisFixes,
+                operationType: ag.operationType
+            },
+            create: ag
+        });
+    }
+    console.log('✅ Matrice d\'agrégateurs déployée.');
 }
 
 main()
@@ -366,107 +289,3 @@ main()
     .finally(async () => {
         await prisma.$disconnect();
     });
-
-
-
-
-/**
- * const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcrypt');
-const currencyHelper = require('../helpers/currency.helper');
-const PasswordUtil = require('../utils/password.util');
-require('dotenv').config();
-
-const prisma = new PrismaClient();
-
-async function main() {
-console.log('🚀 Initialisation du système UniPay autonome...');
-
-// 1. Configuration de l'Agrégateur
-await prisma.agregateur.upsert({
-    where: { id: 'ag_unipay' },
-    update: {},
-    create: {
-        id: 'ag_unipay',
-        nom: 'UniPay Mondial',
-        type: 'INTERNE',
-        pays: 'ALL',
-        commissionPct: 0.015,
-        statut: 'ACTIF'
-    }
-});
-
-// 2. Création de l'Administrateur
-const emailAdmin = process.env.ADMIN_EMAIL || 'admin@unipay.com';
-const telephoneAdmin = '+237600000000'; 
-const adminExiste = await prisma.utilisateur.findUnique({ where: { email: emailAdmin } });
-
-if (!adminExiste) {
-    const localisationAdmin = currencyHelper.detecterParTelephone(telephoneAdmin);
-    const motDePasseAdminHashe = PasswordUtil.hacher 
-        ? await PasswordUtil.hacher(process.env.ADMIN_PASSWORD || 'AdminUniPay2026!') 
-        : await bcrypt.hash('AdminUniPay2026!', 12);
-    
-    // 🧮 Solde généré de manière cohérente directement selon la devise détectée
-    // (ex: Si XAF/XOF on met ~1 000 000, si USD/EUR on met ~5 000)
-    const estMonnaieFaible = ['XAF', 'XOF', 'GNF', 'INR'].includes(localisationAdmin.devise);
-    const soldeAdmin = estMonnaieFaible 
-        ? Math.floor(Math.random() * (1000000 - 900000 + 1)) + 900000
-        : Math.floor(Math.random() * (5000 - 4000 + 1)) + 4000;
-
-    await prisma.utilisateur.create({
-        data: {
-            nom: 'SYSTEM', prenom: 'ADMIN', email: emailAdmin, telephone: telephoneAdmin,
-            motDePasse: motDePasseAdminHashe, pays: localisationAdmin.pays, role: 'ADMIN',
-            statutCompte: 'ACTIF', statutKYC: 'VERIFIE',
-            portefeuille: {
-                create: { devise: localisationAdmin.devise, solde: soldeAdmin, soldeBloque: 0, statut: 'ACTIF' }
-            }
-        }
-    });
-    console.log(`✅ Admin créé | Devise : ${localisationAdmin.devise} | Solde : ${soldeAdmin}`);
-}
-
-// 3. Création des Utilisateurs de Test
-const numerosInternationaux = [
-    '+237650000001', // Cameroun (XAF)
-    '+12025550125',  // USA (USD)
-    '+33123456789'   // France (EUR)
-];
-
-for (let i = 0; i < numerosInternationaux.length; i++) {
-    const emailUser = `user${i + 1}@unipay.com`;
-    const utilisateurExiste = await prisma.utilisateur.findUnique({ where: { email: emailUser } });
-
-    if (!utilisateurExiste) {
-        const telephone = numerosInternationaux[i];
-        const localisationUser = currencyHelper.detecterParTelephone(telephone);
-        
-        // 🧮 Allocation intelligente du solde directement dans la devise de l'intervenant
-        const estMonnaieFaible = ['XAF', 'XOF', 'INR'].includes(localisationUser.devise);
-        const soldeUser = estMonnaieFaible 
-            ? Math.floor(Math.random() * (500000 - 300000 + 1)) + 300000
-            : Math.floor(Math.random() * (2500 - 1500 + 1)) + 1500;
-
-        const motDePasseHashe = PasswordUtil.hacher 
-            ? await PasswordUtil.hacher('Password123@!') 
-            : await bcrypt.hash('Password123@!', 12);
-
-        await prisma.utilisateur.create({
-            data: {
-                nom: `USER_${i + 1}`, prenom: `TEST_${i + 1}`, email: emailUser, telephone,
-                motDePasse: motDePasseHashe, pays: localisationUser.pays, role: 'USER',
-                statutCompte: 'ACTIF', statutKYC: 'VERIFIE',
-                portefeuille: {
-                    create: { devise: localisationUser.devise, solde: soldeUser, soldeBloque: 0, statut: 'ACTIF' }
-                }
-            }
-        });
-        console.log(`✅ User ${i + 1} créé | Devise : ${localisationUser.devise} | Solde : ${soldeUser}`);
-    }
-}
-console.log('🎉 Seed UniPay terminé.');
-}
-
-main().catch((e) => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());
- */

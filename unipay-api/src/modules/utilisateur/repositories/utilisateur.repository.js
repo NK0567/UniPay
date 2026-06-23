@@ -14,7 +14,7 @@ class UtilisateurRepository {
         email: true,
         telephone: true,
         role: true,
-        statutKyc: true, // 'NIVEAU_0', 'NIVEAU_1', 'NIVEAU_2'
+        statutKYC: true, // 💎 Corrigé ici aussi pour correspondre à ton schéma Prisma (UPPERCASE)
         estActif: true,
         dateCreation: true,
         portefeuille: {
@@ -49,7 +49,9 @@ class UtilisateurRepository {
   async modifierStatutKyc(id, nouveauNiveau) {
     return await prisma.utilisateur.update({
       where: { id },
-      data: { statutKyc: nouveauNiveau }
+      data: { 
+        statutKYC: nouveauNiveau // 💎 Corrigé : le champ est maintenant 100% dynamique et respecte la casse
+      }
     });
   }
 }

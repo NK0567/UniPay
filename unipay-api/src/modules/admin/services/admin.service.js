@@ -299,8 +299,8 @@ class AdminService {
     return await this.listerCommissions(); // On renvoie la liste mise à jour
   }
 
-  async executerClotureJournaliere() {
-    const rapport = await this.genererRapportDashboard();
+  async executerClotureJournaliere(adminId) {
+    const rapport = await this.genererRapportDashboard(adminId);
     const montantAverser = rapport.cardsGlobales.montantGlobalBeneficeNet;
 
     if (montantAverser <= 0) {

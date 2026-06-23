@@ -2,36 +2,34 @@ const adminService = require("../services/admin.service");
 
 class AdminController {
   // GET /api/v1/admin/dashboard
-async getDashboard(req, res) {
-  try {
-    // 💡 Récupération de l'ID de l'admin connecté injecté par ton middleware d'authentification
-    const adminId = req.user?.id; 
+  async getDashboard(req, res) {
+    try {
+      // 💡 ID de l'admin connecté injecté par le middleware d'authentification
+      const adminId = req.user?.id;
 
-    // Sécurité au niveau du contrôleur au cas où le middleware n'aurait pas fait son travail
-    if (!adminId) {
-      return res.status(401).json({
+      if (!adminId) {
+        return res.status(401).json({
+          succes: false,
+          message: "Action non autorisée. Session administrateur introuvable."
+        });
+      }
+
+      // 🎯 Détection dynamique et stricte basée sur l'admin connecté (Devise, calculs)
+      const rapport = await adminService.genererRapportDashboard(adminId);
+
+      return res.status(200).json({
+        succes: true,
+        data: rapport
+      });
+    } catch (error) {
+      return res.status(500).json({
         succes: false,
-        message: "Action non autorisée. Session administrateur introuvable."
+        message: error.message
       });
     }
-
-    // 🎯 On passe l'adminId au service pour la détection dynamique et stricte de sa devise
-    const rapport = await adminService.genererRapportDashboard(adminId);
-
-    return res.status(200).json({
-      succes: true,
-      data: rapport
-    });
-  } catch (error) {
-    return res.status(500).json({ 
-      succes: false, 
-      message: error.message 
-    });
   }
-}
 
   // PATCH /api/v1/admin/utilisateurs/:id/statut
-  // 👤 Permet de suspendre, approuver (ACTIF) ou basculer le profil d'un utilisateur
   async changerStatutUtilisateur(req, res) {
     try {
       const { id } = req.params;
@@ -53,16 +51,15 @@ async getDashboard(req, res) {
   }
 
   // GET /api/v1/admin/utilisateurs/:id/profil
-  // 🔍 Consultation à la trace du profil d'un client et de son solde actuel
   async voirProfilUtilisateur(req, res) {
     try {
       const { id } = req.params;
       const profil = await adminService.consulterProfilEtSoldeUtilisateur(id);
-      
+
       if (!profil) {
         return res.status(404).json({ succes: false, message: "Utilisateur introuvable." });
       }
-      
+
       return res.status(200).json({ succes: true, data: profil });
     } catch (error) {
       return res.status(500).json({ succes: false, message: error.message });
@@ -70,11 +67,10 @@ async getDashboard(req, res) {
   }
 
   // POST /api/v1/admin/config-finance
-  // 📈 Configuration dynamique des commissions sans toucher au code
   async ajusterCommissionsSysteme(req, res) {
     try {
-      const { cle, valeur } = req.body; // ex cle: "FRAIS_RETRAIT_STANDARD", valeur: "0.015"
-      
+      const { cle, valeur } = req.body; 
+
       if (!cle || valeur === undefined) {
         return res.status(400).json({ succes: false, message: "La clé et la valeur sont requises." });
       }
@@ -106,7 +102,6 @@ async getDashboard(req, res) {
   // PUT /api/unipay/admin/commissions
   async updateCommissions(req, res) {
     try {
-      // Attendre un objet comme {"FRAIS_DEPOT_PCT": 2.5, "FRAIS_RETRAIT_PCT": 1.8} dans req.body
       const nouvellesCommissions = req.body;
 
       if (!nouvellesCommissions || Object.keys(nouvellesCommissions).length === 0) {
@@ -128,31 +123,69 @@ async getDashboard(req, res) {
     }
   }
 
-
-  // POST /api/v1/admin/cloture-gains
+  // POST /api/v1/admin/cloture
   async declencheCloture(req, res) {
     try {
-      const resultat = await adminService.executerClotureJournaliere();
+      const adminId = req.user?.id; 
+
+      if (!adminId) {
+        return res.status(401).json({
+          succes: false,
+          message: "Session administrateur manquante. Clôture refusée."
+        });
+      }
+
+      const resultat = await adminService.executerClotureJournaliere(adminId);
+
       return res.status(200).json({
         succes: true,
-        message: "Tous les bénéfices de la journée ont été versés sur votre portefeuille avec succès.",
-        details: resultat
+        message: "Tous les bénéfices de la journée ont été archivés et versés sur votre portefeuille avec succès.",
+        data: resultat 
       });
     } catch (error) {
-      return res.status(500).json({ succes: false, message: error.message });
+      console.error("[UniPay Backend] Échec critique lors de la clôture :", error);
+      return res.status(500).json({ 
+        succes: false, 
+        message: error.message || "Erreur interne lors du traitement de la clôture." 
+      });
     }
   }
 
   // POST /api/v1/admin/recuperer-fonds
   async recupererFonds(req, res) {
     try {
-      if (req.user.role !== 'ADMIN') {
+      const adminId = req.user?.id;
+
+      // 1. Double sécurité sur le rôle
+      if (req.user?.role !== 'ADMIN' || !adminId) {
         return res.status(403).json({ succes: false, error: "Accès interdit. Droits Admin requis." });
       }
-      const resultat = await adminService.recupererFondsDuCoffre(req.user.id);
-      return res.status(200).json({ succes: true, data: resultat });
+
+      // 2. 🛡️ Gestion 100% dynamique via le Service
+      // Le service va vérifier le solde du coffre, adapter les calculs et extraire la devise de cet admin
+      const resultat = await adminService.recupererFondsDuCoffre(adminId);
+
+      // 3. Si le service indique que c'est déjà vide, on fait une gestion douce (Code 200) sans générer de crash DOM au front
+      if (resultat.dejaVide) {
+        return res.status(200).json({
+          succes: true,
+          message: "Le coffre est déjà vide. Aucun transfert nécessaire.",
+          data: { montantRecupere: 0, devise: resultat.deviseAdmin }
+        });
+      }
+
+      // 4. Succès du rapatriement réel
+      return res.status(200).json({ 
+        succes: true, 
+        data: resultat 
+      });
+
     } catch (error) {
-      return res.status(400).json({ succes: false, error: error.message });
+      console.error("[UniPay Backend] Échec lors de la récupération des fonds :", error);
+      return res.status(400).json({ 
+        succes: false, 
+        message: error.message || "Erreur lors du rapatriement des fonds." 
+      });
     }
   }
 

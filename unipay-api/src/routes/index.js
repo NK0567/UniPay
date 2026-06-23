@@ -18,6 +18,7 @@ const securiteRoutes = require('../modules/sécurité/routes/securite.routes');
 const notificationRoutes = require('../modules/notification/routes/notification.routes');
 const utilisateurRoutes = require('../modules/utilisateur/routes/user.routes');
 const configurationRoutes = require('../modules/configuration/routes/configuration.routes');
+const agregateurRoutes = require('../modules/agrégateur/routes/agregateurs.routes');
 
 // Route technique de Health Check (Vérification de l'état de l'API)
 router.get('/health', (req, res) => {
@@ -28,6 +29,9 @@ router.get('/health', (req, res) => {
 
 // on monte le module Auth pour toutes les routes de auth.routes.js commencerons par /auth
 router.use('/auth', authRoutes);
+
+// on monte la route agregateur pour toutes les routes de agregateurs.routes.js commencerons par /admin/agregateurs
+router.use('/agregateurs', agregateurRoutes);
 
 // on monte le module wallet pour toutes les routes de wallet.routes.js commencerons par /wallet
 router.use('/wallet', walletRoutes)

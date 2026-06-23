@@ -28,7 +28,7 @@ class UtilisateurService {
    * Permet de faire passer un utilisateur au niveau supérieur pour débloquer ses plafonds
    */
   async approuverKycUtilisateur(utilisateurId, niveauKyc, responsableId) {
-    const niveauxValides = ['NIVEAU_0', 'NIVEAU_1', 'NIVEAU_2'];
+    const niveauxValides = ["NON_VERIFIE", "EN_COURS", "VERIFIE", "REJETE"];
     if (!niveauxValides.includes(niveauKyc)) {
       throw new Error("Niveau de conformité KYC invalide.");
     }
